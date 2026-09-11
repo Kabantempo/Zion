@@ -4,15 +4,19 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
-import { Card } from '@/components/ui/card'
-import { Avatar } from '@/components/ui/avatar'
-import { getLevel, getLevelName, getPointsForNextLevel } from '@/lib/utils'
+import { LeaderboardPodium, type LeaderboardRanking as PodiumRanking } from '@/components/ui/leaderboard-podium'
+import { LeaderboardRankings, type LeaderboardRankingItem } from '@/components/ui/leaderboard-rankings'
+import { getLevel, getLevelName } from '@/lib/utils'
 import type { Profile } from '@/types'
 
 type Period = 'week' | 'month' | 'all'
 
 export default function ClassementPage() {
-  return <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>}><ClassementContent /></Suspense>
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>}>
+      <ClassementContent />
+    </Suspense>
+  )
 }
 
 function ClassementContent() {
@@ -51,94 +55,99 @@ function ClassementContent() {
     function calcStreak(pid: string): number {
       const userLogs = (allTimeLogs ?? []).filter((l: any) => l.done_by === pid)
       const days = new Set(userLogs.map((l: any) => new Date(l.done_at).toDateString()))
-      const today = new Date().toDateString()
-      if (!days.has(today) && !days.has(new Date(Date.now() - 86400000).toDateString())) return 0
-      let streak = days.has(today) ? 1 : 0
-      let d = new Date(Date.now() - (streak ? 1 : 0) * 86400000)
-      while (streak < 365) {
-        if (days.has(d.toDateString())) { streak++; d = new Date(d.getTime() - 86400000) }
-        else break
-      }
+      let streak = days.has(new Date().toDateString()) ? 1 : 0
+      let d = new Date(Date.now() - 86400000)
+      while (days.has(d.toDateString())) { streak++; d = new Date(d.getTime() - 86400000) }
       return streak
     }
 
-    const leaderboard = (members ?? [])
+    const sorted = (members ?? [])
       .map((m: any) => {
         const p = (Array.isArray(m.profile) ? m.profile[0] : m.profile) as Profile
         if (!p) return null
         const points = pointsByProfile[m.profile_id] ?? 0
-        return { profile_id: m.profile_id, display_name: p.display_name, color: p.color, avatar_url: p.avatar_url, points, level: getLevel(points), streak: calcStreak(m.profile_id) }
+        const level = getLevel(points)
+        return {
+          userId: m.profile_id,
+          userName: p.display_name,
+          color: p.color,
+          avatarUrl: p.avatar_url,
+          value: points,
+          level,
+          streak: calcStreak(m.profile_id),
+          byline: `Nv.${level} · ${getLevelName(level)} · ${calcStreak(m.profile_id)}🔥`,
+        }
       })
       .filter(Boolean)
-      .sort((a: any, b: any) => b.points - a.points)
+      .sort((a: any, b: any) => b.value - a.value)
 
-    const myEntry = leaderboard.find((e: any) => e?.profile_id === profileId)
-    setData({ leaderboard, myEntry, profileId, householdId, period })
+    setData({ sorted, profileId, period })
     setLoading(false)
   }
 
   if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
-  const { leaderboard, myEntry, profileId } = data
+  const { sorted, profileId } = data
+
+  const podiumRankings: PodiumRanking[] = sorted
+    .slice(0, 3)
+    .map((e: any, i: number) => ({ ...e, rank: (i + 1) as 1 | 2 | 3 }))
+
+  const rankingItems: LeaderboardRankingItem[] = sorted.map((e: any, i: number) => ({
+    ...e,
+    rank: i + 1,
+    displayed: true,
+  }))
+
+  const now = new Date()
+  let fromDate: Date
+  if (period === 'week') fromDate = new Date(now.getTime() - 7 * 86400000)
+  else if (period === 'month') fromDate = new Date(now.getTime() - 30 * 86400000)
+  else fromDate = new Date('2024-01-01')
 
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
-      <div className="flex p-1 bg-[#1a1a24] rounded-xl border border-[#2e2e3e]">
+      {/* Period tabs */}
+      <div className="flex p-1 bg-[#13131a] rounded-2xl border border-[#252535]">
         {([['week', 'Cette semaine'], ['month', 'Ce mois'], ['all', 'All time']] as const).map(([p, label]) => (
-          <a key={p} href={`?period=${p}`} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all text-center ${period === p ? 'bg-red-500 text-white' : 'text-[#8888a0]'}`}>{label}</a>
+          <a
+            key={p}
+            href={`?period=${p}`}
+            className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all text-center ${period === p ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-[#7070a0] hover:text-[#f0f0f8]'}`}
+          >
+            {label}
+          </a>
         ))}
       </div>
 
-      {myEntry && (
-        <Card className="border-red-500/30 bg-red-500/5">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl font-black text-red-400">#{leaderboard.findIndex((e: any) => e?.profile_id === profileId) + 1}</span>
-            <Avatar name={myEntry.display_name} color={myEntry.color} avatarUrl={myEntry.avatar_url} size="md" />
-            <div className="flex-1">
-              <p className="font-bold text-[#f0f0f5]">{myEntry.display_name}</p>
-              <p className="text-xs text-[#8888a0]">Nv.{myEntry.level} · {getLevelName(myEntry.level)}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-black text-red-400">{myEntry.points} pts</p>
-              <p className="text-xs text-orange-400">{myEntry.streak} 🔥</p>
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="flex justify-between text-xs text-[#8888a0] mb-1">
-              <span>Niveau {myEntry.level}</span>
-              <span>Niveau {myEntry.level + 1}</span>
-            </div>
-            <div className="h-2 bg-[#2e2e3e] rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-red-500 to-red-600 rounded-full transition-all"
-                style={{ width: `${Math.min(100, ((myEntry.points - getPointsForNextLevel(myEntry.points).current) / (getPointsForNextLevel(myEntry.points).next - getPointsForNextLevel(myEntry.points).current)) * 100)}%` }} />
-            </div>
-          </div>
-        </Card>
+      {/* Podium */}
+      {podiumRankings.length > 0 && (
+        <div className="bg-[#13131a] border border-[#252535] rounded-2xl p-5">
+          <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest text-center mb-5">Podium</p>
+          <LeaderboardPodium rankings={podiumRankings} />
+        </div>
       )}
 
-      <div>
-        <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">Classement</h3>
-        <div className="flex flex-col gap-2">
-          {leaderboard.map((entry: any, i: number) => {
-            if (!entry) return null
-            const isMe = entry.profile_id === profileId
-            const medals = ['🥇', '🥈', '🥉']
-            return (
-              <Card key={entry.profile_id} className={isMe ? 'border-red-500/30' : ''}>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg w-8 text-center">{medals[i] ?? `${i + 1}`}</span>
-                  <Avatar name={entry.display_name} color={entry.color} avatarUrl={entry.avatar_url} size="sm" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-[#f0f0f5]">{entry.display_name} {isMe && '(moi)'}</p>
-                    <p className="text-xs text-[#8888a0]">Nv.{entry.level} · {entry.streak} 🔥</p>
-                  </div>
-                  <span className="font-bold text-[#f0f0f5]">{entry.points} pts</span>
-                </div>
-              </Card>
-            )
-          })}
+      {/* Full rankings */}
+      {rankingItems.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-2 px-1">Classement complet</p>
+          <LeaderboardRankings
+            rankings={rankingItems}
+            currentUserId={profileId}
+            showPagination
+            defaultPageSize={10}
+          />
         </div>
-      </div>
+      )}
+
+      {sorted.length === 0 && (
+        <div className="text-center py-16 text-[#7070a0]">
+          <p className="text-4xl mb-3">🏆</p>
+          <p className="font-medium">Aucun point pour cette période</p>
+          <p className="text-sm mt-1">Complète des tâches pour apparaître ici !</p>
+        </div>
+      )}
     </div>
   )
 }
