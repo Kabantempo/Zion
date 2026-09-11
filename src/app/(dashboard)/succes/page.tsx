@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
 import { Card } from '@/components/ui/card'
+import { Avatar } from '@/components/ui/avatar'
 
 const ACHIEVEMENTS = [
   { key: 'first_task', icon: '🌱', label: 'Premier pas', description: 'Réaliser ta 1ère tâche' },
@@ -20,140 +21,198 @@ const ACHIEVEMENTS = [
   { key: 'all_categories', icon: '🎨', label: 'Polyvalent', description: 'Tâches dans 5 catégories' },
 ]
 
+interface MemberProfile {
+  profileId: string
+  displayName: string
+  color: string
+  avatarUrl: string | null
+}
+
+interface Stats {
+  taskCount: number
+  totalPoints: number
+  saviorCount: number
+  streak: number
+  categoriesDone: Set<string>
+}
+
+function computeUnlocked(stats: Stats) {
+  const { taskCount, totalPoints, saviorCount, streak, categoriesDone } = stats
+  const checks: Record<string, boolean> = {
+    first_task: taskCount >= 1,
+    ten_tasks: taskCount >= 10,
+    fifty_tasks: taskCount >= 50,
+    hundred_tasks: taskCount >= 100,
+    streak_3: streak >= 3,
+    streak_7: streak >= 7,
+    streak_30: streak >= 30,
+    savior: saviorCount >= 1,
+    points_500: totalPoints >= 500,
+    points_2000: totalPoints >= 2000,
+    all_categories: categoriesDone.size >= 5,
+  }
+  return checks
+}
+
+function getProgress(key: string, stats: Stats): number {
+  const { taskCount, totalPoints, streak, categoriesDone } = stats
+  switch (key) {
+    case 'first_task': return Math.min(100, taskCount * 100)
+    case 'ten_tasks': return Math.min(100, (taskCount / 10) * 100)
+    case 'fifty_tasks': return Math.min(100, (taskCount / 50) * 100)
+    case 'hundred_tasks': return Math.min(100, (taskCount / 100) * 100)
+    case 'streak_3': return Math.min(100, (streak / 3) * 100)
+    case 'streak_7': return Math.min(100, (streak / 7) * 100)
+    case 'streak_30': return Math.min(100, (streak / 30) * 100)
+    case 'points_500': return Math.min(100, (totalPoints / 500) * 100)
+    case 'points_2000': return Math.min(100, (totalPoints / 2000) * 100)
+    case 'all_categories': return Math.min(100, (categoriesDone.size / 5) * 100)
+    default: return 0
+  }
+}
+
 export default function SuccesPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [stats, setStats] = useState<any>(null)
+  const [members, setMembers] = useState<MemberProfile[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [statsMap, setStatsMap] = useState<Record<string, Stats>>({})
   const [loading, setLoading] = useState(true)
+  const [myProfileId, setMyProfileId] = useState<string | null>(null)
 
   useEffect(() => {
     const session = getProfileSession()
     if (!session) { router.replace('/profiles'); return }
-    load(session.profileId, session.householdId)
+    setMyProfileId(session.profileId)
+    setSelectedId(session.profileId)
+    loadAll(session.profileId, session.householdId)
   }, [])
 
-  async function load(profileId: string, householdId: string) {
-    const [{ data: allTimeLogs }, { data: pointsData }, { data: ticketsDone }] = await Promise.all([
-      supabase.from('task_logs').select('done_at, task_type:task_types(category)').eq('done_by', profileId).eq('household_id', householdId).order('done_at'),
-      supabase.from('task_logs').select('points_awarded').eq('done_by', profileId).eq('household_id', householdId),
-      supabase.from('tickets').select('id').eq('household_id', householdId).eq('completed_by', profileId),
-    ])
+  async function loadAll(profileId: string, householdId: string) {
+    const { data: membersData } = await supabase
+      .from('household_members')
+      .select('profile_id, profile:profiles(id, display_name, color, avatar_url)')
+      .eq('household_id', householdId)
 
-    const taskCount = allTimeLogs?.length ?? 0
-    const totalPoints = (pointsData ?? []).reduce((s: number, l: any) => s + l.points_awarded, 0)
-    const saviorCount = ticketsDone?.length ?? 0
+    const profiles: MemberProfile[] = (membersData ?? []).map((m: any) => {
+      const p = Array.isArray(m.profile) ? m.profile[0] : m.profile
+      return { profileId: m.profile_id, displayName: p?.display_name ?? '?', color: p?.color ?? '#555', avatarUrl: p?.avatar_url ?? null }
+    }).filter((m: any) => m.displayName !== '?')
 
-    const days = new Set((allTimeLogs ?? []).map((l: any) => new Date(l.done_at).toDateString()))
-    let streak = days.has(new Date().toDateString()) ? 1 : 0
-    let d = new Date(Date.now() - 86400000)
-    while (days.has(d.toDateString())) { streak++; d = new Date(d.getTime() - 86400000) }
+    setMembers(profiles)
 
-    const categoriesDone = new Set((allTimeLogs ?? []).map((l: any) => {
-      const tt = Array.isArray(l.task_type) ? l.task_type[0] : l.task_type
-      return tt?.category
-    }).filter(Boolean))
+    const map: Record<string, Stats> = {}
+    await Promise.all(profiles.map(async (m) => {
+      const [{ data: allTimeLogs }, { data: pointsData }, { data: ticketsDone }] = await Promise.all([
+        supabase.from('task_logs').select('done_at, task_type:task_types(category)').eq('done_by', m.profileId).eq('household_id', householdId).order('done_at'),
+        supabase.from('task_logs').select('points_awarded').eq('done_by', m.profileId).eq('household_id', householdId),
+        supabase.from('tickets').select('id').eq('household_id', householdId).eq('completed_by', m.profileId),
+      ])
 
-    setStats({ taskCount, totalPoints, saviorCount, streak, categoriesDone })
+      const taskCount = allTimeLogs?.length ?? 0
+      const totalPoints = (pointsData ?? []).reduce((s: number, l: any) => s + l.points_awarded, 0)
+      const saviorCount = ticketsDone?.length ?? 0
+
+      const days = new Set((allTimeLogs ?? []).map((l: any) => new Date(l.done_at).toDateString()))
+      let streak = days.has(new Date().toDateString()) ? 1 : 0
+      let d = new Date(Date.now() - 86400000)
+      while (days.has(d.toDateString())) { streak++; d = new Date(d.getTime() - 86400000) }
+
+      const categoriesDone = new Set((allTimeLogs ?? []).map((l: any) => {
+        const tt = Array.isArray(l.task_type) ? l.task_type[0] : l.task_type
+        return tt?.category
+      }).filter(Boolean))
+
+      map[m.profileId] = { taskCount, totalPoints, saviorCount, streak, categoriesDone }
+    }))
+
+    setStatsMap(map)
     setLoading(false)
   }
 
-  function isUnlocked(key: string): boolean {
-    if (!stats) return false
-    const { taskCount, totalPoints, saviorCount, streak, categoriesDone } = stats
-    switch (key) {
-      case 'first_task': return taskCount >= 1
-      case 'ten_tasks': return taskCount >= 10
-      case 'fifty_tasks': return taskCount >= 50
-      case 'hundred_tasks': return taskCount >= 100
-      case 'streak_3': return streak >= 3
-      case 'streak_7': return streak >= 7
-      case 'streak_30': return streak >= 30
-      case 'savior': return saviorCount >= 1
-      case 'points_500': return totalPoints >= 500
-      case 'points_2000': return totalPoints >= 2000
-      case 'all_categories': return categoriesDone.size >= 5
-      default: return false
-    }
-  }
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
-  function getProgress(key: string): number {
-    if (!stats) return 0
-    const { taskCount, totalPoints, streak, categoriesDone } = stats
-    switch (key) {
-      case 'first_task': return Math.min(100, taskCount * 100)
-      case 'ten_tasks': return Math.min(100, (taskCount / 10) * 100)
-      case 'fifty_tasks': return Math.min(100, (taskCount / 50) * 100)
-      case 'hundred_tasks': return Math.min(100, (taskCount / 100) * 100)
-      case 'streak_3': return Math.min(100, (streak / 3) * 100)
-      case 'streak_7': return Math.min(100, (streak / 7) * 100)
-      case 'streak_30': return Math.min(100, (streak / 30) * 100)
-      case 'points_500': return Math.min(100, (totalPoints / 500) * 100)
-      case 'points_2000': return Math.min(100, (totalPoints / 2000) * 100)
-      case 'all_categories': return Math.min(100, (categoriesDone.size / 5) * 100)
-      default: return 0
-    }
-  }
-
-  if (loading || !stats) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
-
-  const unlocked = ACHIEVEMENTS.filter((a) => isUnlocked(a.key))
-  const locked = ACHIEVEMENTS.filter((a) => !isUnlocked(a.key))
+  const stats = selectedId ? statsMap[selectedId] : null
+  const unlocked = stats ? ACHIEVEMENTS.filter((a) => computeUnlocked(stats)[a.key]) : []
+  const locked = stats ? ACHIEVEMENTS.filter((a) => !computeUnlocked(stats)[a.key]) : []
 
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
-      <Card>
-        <div className="flex items-center gap-4">
-          <div className="text-4xl">🏅</div>
-          <div>
-            <p className="text-2xl font-black text-[#f0f0f5]">{unlocked.length}<span className="text-[#8888a0] text-lg font-normal">/{ACHIEVEMENTS.length}</span></p>
-            <p className="text-sm text-[#8888a0]">succès débloqués</p>
-          </div>
-        </div>
-        <div className="mt-3 h-2 bg-[#2e2e3e] rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all" style={{ width: `${(unlocked.length / ACHIEVEMENTS.length) * 100}%` }} />
-        </div>
-      </Card>
-
-      {unlocked.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">Débloqués ✨</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {unlocked.map((a) => (
-              <Card key={a.key} className="text-center">
-                <div className="text-4xl mb-2">{a.icon}</div>
-                <p className="text-sm font-bold text-[#f0f0f5]">{a.label}</p>
-                <p className="text-xs text-[#8888a0] mt-0.5">{a.description}</p>
-              </Card>
-            ))}
-          </div>
+      {/* Member picker */}
+      {members.length > 1 && (
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {members.map((m) => (
+            <button
+              key={m.profileId}
+              onClick={() => setSelectedId(m.profileId)}
+              className={`flex flex-col items-center gap-1.5 flex-shrink-0 transition-all ${selectedId === m.profileId ? 'opacity-100' : 'opacity-40'}`}
+            >
+              <div className={`rounded-full transition-all ${selectedId === m.profileId ? 'ring-2 ring-red-500 ring-offset-2 ring-offset-[#0f0f13]' : ''}`}>
+                <Avatar name={m.displayName} color={m.color} avatarUrl={m.avatarUrl} size="md" />
+              </div>
+              <span className="text-xs text-[#8888a0]">{m.profileId === myProfileId ? 'Moi' : m.displayName}</span>
+            </button>
+          ))}
         </div>
       )}
 
-      {locked.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">À débloquer</h3>
-          <div className="flex flex-col gap-2">
-            {locked.map((a) => {
-              const progress = getProgress(a.key)
-              return (
-                <Card key={a.key} className="opacity-60">
-                  <div className="flex items-center gap-3">
-                    <div className="text-3xl grayscale">{a.icon}</div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-[#f0f0f5]">{a.label}</p>
-                      <p className="text-xs text-[#8888a0]">{a.description}</p>
-                      {progress > 0 && (
-                        <div className="mt-1.5 h-1.5 bg-[#2e2e3e] rounded-full overflow-hidden">
-                          <div className="h-full bg-red-500 rounded-full" style={{ width: `${progress}%` }} />
+      {stats && (
+        <>
+          <Card>
+            <div className="flex items-center gap-4">
+              <div className="text-4xl">🏅</div>
+              <div>
+                <p className="text-2xl font-black text-[#f0f0f5]">{unlocked.length}<span className="text-[#8888a0] text-lg font-normal">/{ACHIEVEMENTS.length}</span></p>
+                <p className="text-sm text-[#8888a0]">succès débloqués</p>
+              </div>
+            </div>
+            <div className="mt-3 h-2 bg-[#2e2e3e] rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all" style={{ width: `${(unlocked.length / ACHIEVEMENTS.length) * 100}%` }} />
+            </div>
+          </Card>
+
+          {unlocked.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">Débloqués ✨</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {unlocked.map((a) => (
+                  <Card key={a.key} className="text-center">
+                    <div className="text-4xl mb-2">{a.icon}</div>
+                    <p className="text-sm font-bold text-[#f0f0f5]">{a.label}</p>
+                    <p className="text-xs text-[#8888a0] mt-0.5">{a.description}</p>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {locked.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">À débloquer</h3>
+              <div className="flex flex-col gap-2">
+                {locked.map((a) => {
+                  const progress = getProgress(a.key, stats)
+                  return (
+                    <Card key={a.key} className="opacity-60">
+                      <div className="flex items-center gap-3">
+                        <div className="text-3xl grayscale">{a.icon}</div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-[#f0f0f5]">{a.label}</p>
+                          <p className="text-xs text-[#8888a0]">{a.description}</p>
+                          {progress > 0 && (
+                            <div className="mt-1.5 h-1.5 bg-[#2e2e3e] rounded-full overflow-hidden">
+                              <div className="h-full bg-red-500 rounded-full" style={{ width: `${progress}%` }} />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
