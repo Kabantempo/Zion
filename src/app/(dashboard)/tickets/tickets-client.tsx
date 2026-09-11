@@ -37,7 +37,6 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   // Form state
   const [title, setTitle] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
-  const [dueDate, setDueDate] = useState('')
   const [note, setNote] = useState('')
 
   const displayTickets = filter === 'mine' ? tickets.filter((t) => t.assigned_to === profileId) : tickets
@@ -50,7 +49,6 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
       household_id: householdId,
       title: title.trim(),
       assigned_to: assignedTo || null,
-      due_date: dueDate || null,
       note: note || null,
       status: 'todo',
       created_by: profileId,
@@ -58,7 +56,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
 
     if (!error && data) {
       setTickets((prev) => [data as Ticket, ...prev])
-      setTitle(''); setAssignedTo(''); setDueDate(''); setNote(''); setShowCreate(false)
+      setTitle(''); setAssignedTo(''); setNote(''); setShowCreate(false)
     }
     setLoading(null)
   }
@@ -111,9 +109,6 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                       <span className="text-xs text-[#8888a0]">{(ticket.assignee as Profile).display_name}</span>
                     </div>
                   )}
-                  {ticket.due_date && (
-                    <p className="text-xs text-[#8888a0] mb-2">⏰ {new Date(ticket.due_date).toLocaleDateString('fr-FR')}</p>
-                  )}
                   {ticket.note && <p className="text-xs text-[#555570] mb-2 italic">{ticket.note}</p>}
                   <div className="flex gap-2 mt-1">
                     {status === 'todo' && (
@@ -161,7 +156,6 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                 {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
               </select>
             </div>
-            <Input label="Échéance (optionnel)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             <Input label="Note (optionnel)" placeholder="Plus d'infos..." value={note} onChange={(e) => setNote(e.target.value)} />
             <Button type="submit" loading={loading === 'create'} className="w-full">Créer le ticket</Button>
           </form>

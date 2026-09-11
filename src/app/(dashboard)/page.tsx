@@ -97,7 +97,6 @@ export default function HomePage() {
                     {ticket.status === 'in_progress' ? 'En cours' : 'À faire'}
                   </Badge>
                 </div>
-                {ticket.due_date && <p className="text-xs text-[#8888a0] mt-1">⏰ {new Date(ticket.due_date).toLocaleDateString('fr-FR')}</p>}
               </Card>
             ))}
           </div>
