@@ -31,6 +31,7 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -46,15 +47,17 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
     setLoading(true)
 
     let avatarUrl = profile.avatar_url ?? null
+    setUploadError(null)
 
     if (avatarFile) {
-      const session = getProfileSession()
       const ext = avatarFile.name.split('.').pop()
-      const path = `avatars/${session?.profileId ?? profileId}.${ext}`
+      const path = `${profileId}.${ext}`
       const { error: upErr } = await supabase.storage.from('avatars').upload(path, avatarFile, { upsert: true })
-      if (!upErr) {
+      if (upErr) {
+        setUploadError('Photo non sauvegardée : ' + upErr.message)
+      } else {
         const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-        avatarUrl = urlData.publicUrl
+        avatarUrl = urlData.publicUrl + '?t=' + Date.now()
       }
     }
 
@@ -115,6 +118,7 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
                 ))}
               </div>
             </div>
+            {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
             <Button type="submit" loading={loading}>
               {saved ? '✓ Sauvegardé !' : 'Sauvegarder'}
             </Button>
