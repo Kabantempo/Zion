@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -71,26 +72,27 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
 
   return (
     <>
-      {celebration && (
+      {celebration && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="bg-[#1a1a24] border border-green-500/30 rounded-2xl p-6 text-center animate-pop-in shadow-2xl">
             <div className="text-5xl mb-3">✅</div>
             <p className="text-lg font-bold text-[#f0f0f5]">{celebration.label}</p>
             <p className="text-3xl font-black text-green-400 mt-2">+{celebration.points} pts !</p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <div className="flex gap-2">
-        <Button className="flex-1" onClick={() => setShowLog(true)}>✅ J'ai fait une tâche</Button>
+        <Button className="flex-1" onClick={() => setShowLog(true)}>J'ai fait une tâche</Button>
         <Button variant="secondary" onClick={() => setShowAdd(true)}>+ Tâche</Button>
       </div>
 
       {/* Log task sheet */}
-      {showLog && (
+      {showLog && createPortal(
         <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setShowLog(false)}>
           <div className="absolute inset-0 bg-black/60" />
-          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()}>
+          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto mb-4" />
             <h3 className="text-base font-bold text-[#f0f0f5] mb-4">Quelle tâche as-tu faite ?</h3>
             {Object.entries(
@@ -109,14 +111,15 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
               </div>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add task type sheet */}
-      {showAdd && (
+      {showAdd && createPortal(
         <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setShowAdd(false)}>
           <div className="absolute inset-0 bg-black/60" />
-          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 animate-slide-up max-h-[85dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()} onSubmit={addTaskType}>
+          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} onSubmit={addTaskType}>
             <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
             <h3 className="text-base font-bold text-[#f0f0f5]">Nouvelle tâche type</h3>
             <Input label="Libellé" placeholder="Nettoyer le four" value={label} onChange={(e) => setLabel(e.target.value)} required />
@@ -139,7 +142,8 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
             </div>
             <Button type="submit" loading={loading === 'add'} className="w-full">Ajouter</Button>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
