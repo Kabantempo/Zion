@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { href: '/taches', icon: CheckSquare, label: 'Tâches' },
   { href: '/tickets', icon: Ticket, label: 'Tickets' },
   { href: '/accueil', icon: Home, label: 'Accueil', isHome: true },
-  { href: '/calendrier', icon: Calendar, label: 'Calendrier' },
+  { href: '/calendrier', icon: Calendar, label: 'Agenda' },
   { href: '/classement', icon: Trophy, label: 'Scores' },
 ]
 
