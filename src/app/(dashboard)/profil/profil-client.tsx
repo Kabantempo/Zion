@@ -60,12 +60,16 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
     setLoading(true)
     setUploadError(null)
 
-    // avatarPreview holds the base64 if a new image was picked, otherwise keep existing URL
     const avatarUrl = avatarFile ? (avatarPreview ?? profile.avatar_url ?? null) : (profile.avatar_url ?? null)
 
-    await supabase.from('profiles').update({ display_name: displayName.trim(), color, avatar_url: avatarUrl }).eq('id', profileId)
+    const { error } = await supabase.from('profiles').update({ display_name: displayName.trim(), color, avatar_url: avatarUrl }).eq('id', profileId)
 
-    // Update localStorage session
+    if (error) {
+      setUploadError('Erreur : ' + error.message)
+      setLoading(false)
+      return
+    }
+
     const s = getProfileSession()
     if (s) setProfileSession({ ...s, displayName: displayName.trim(), color, avatarUrl })
 
@@ -75,7 +79,7 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
   }
 
   async function logout() {
-    localStorage.removeItem('zion_profile_session')
+    localStorage.removeItem('zion_profile')
     try { await supabase.auth.signOut() } catch {}
     window.location.href = '/profiles'
   }
@@ -106,20 +110,6 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
 
           <div className="flex flex-col gap-4">
             <Input label="Prénom / Pseudo" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
-            <div>
-              <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-2.5">Couleur</p>
-              <div className="flex gap-2 flex-wrap">
-                {COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setColor(c)}
-                    className={`w-9 h-9 rounded-full transition-all duration-200 ${color === c ? 'scale-125 ring-2 ring-white/80 ring-offset-2 ring-offset-[#09090d]' : 'hover:scale-110'}`}
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
-              </div>
-            </div>
             {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
             <Button type="submit" loading={loading}>
               {saved ? '✓ Sauvegardé !' : 'Sauvegarder'}
