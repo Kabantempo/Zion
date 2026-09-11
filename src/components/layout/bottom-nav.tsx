@@ -3,14 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Home, CheckSquare, Ticket, Calendar, Trophy } from 'lucide-react'
+import { Home, CheckSquare, Ticket, Calendar, Medal } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/taches', icon: CheckSquare, label: 'Tâches' },
   { href: '/tickets', icon: Ticket, label: 'Tickets' },
   { href: '/accueil', icon: Home, label: 'Accueil', isHome: true },
   { href: '/calendrier', icon: Calendar, label: 'Agenda' },
-  { href: '/classement', icon: Trophy, label: 'Scores' },
+  { href: '/succes', icon: Medal, label: 'Succès' },
 ]
 
 export function BottomNav() {

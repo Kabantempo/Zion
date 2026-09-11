@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
 import { Card } from '@/components/ui/card'
@@ -138,6 +139,12 @@ export default function SuccesPage() {
 
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
+      <div className="flex justify-end">
+        <Link href="/classement" className="text-xs text-[#7070a0] hover:text-red-400 transition-colors flex items-center gap-1">
+          🏆 Classement →
+        </Link>
+      </div>
+
       {/* Member picker */}
       {members.length > 1 && (
         <div className="flex gap-3 overflow-x-auto pb-1">
