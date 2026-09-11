@@ -165,7 +165,7 @@ export default function ProfilesPage() {
     const { error: hmErr } = await supabase.from('household_members').insert({ household_id: hId, profile_id: profileId, role: householdId ? 'member' : 'admin' })
     if (hmErr && hmErr.code !== '23505') { setError('Erreur ajout membre: ' + hmErr.message); setLoading(false); return }
 
-    setProfileSession({ profileId, householdId: hId!, displayName: profileData.display_name, color: profileData.color, avatarUrl: profileData.avatar_url })
+    setProfileSession({ profileId, householdId: hId!, displayName: profileData.display_name, color: profileData.color, avatarUrl: profileData.avatar_url ?? '' })
     router.replace('/accueil')
   }
 
