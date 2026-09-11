@@ -64,7 +64,7 @@ export function QuickTaskButton({ taskTypes, householdId, profileId }: Props) {
       {open && createPortal(
         <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/60" />
-          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 pb-28 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto mb-4" />
             <h3 className="text-base font-bold text-[#f0f0f5] mb-4">Quelle tâche as-tu faite ?</h3>
             {Object.entries(categories).map(([category, tasks]) => (
