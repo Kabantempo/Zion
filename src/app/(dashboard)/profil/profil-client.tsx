@@ -11,8 +11,6 @@ import { Badge } from '@/components/ui/badge'
 import { setProfileSession, getProfileSession } from '@/lib/profile-session'
 import type { Profile, HouseholdMember } from '@/types'
 
-const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#ef4444', '#f97316', '#5F27CD']
-
 interface Props {
   profile: Profile
   household: { id: string; name: string; invite_code: string } | null
@@ -26,7 +24,7 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
   const supabase = createClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [displayName, setDisplayName] = useState(profile.display_name)
-  const [color, setColor] = useState(profile.color)
+  const [color] = useState(profile.color)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatar_url ?? null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
