@@ -183,7 +183,7 @@ export default function ProfilesPage() {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-[#09090d]">
         <div className="flex flex-col items-center gap-4">
-          <span className="text-3xl font-black tracking-tight text-white">Zion</span>
+          <img src="/logo.svg" alt="Zion" width={56} height={56} className="rounded-xl" />
           <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
         </div>
       </div>
@@ -261,6 +261,9 @@ export default function ProfilesPage() {
     <div className="min-h-dvh bg-[#09090d] flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-14">
+          <div className="flex justify-center mb-4">
+            <img src="/logo.svg" alt="Zion" width={72} height={72} className="rounded-2xl shadow-xl shadow-black/60" />
+          </div>
           <h1 className="text-5xl font-black text-[#f0f0f8] mb-3 tracking-tight">Zion</h1>
           <p className="text-[#7070a0] text-sm font-medium tracking-wide uppercase">Qui est là ?</p>
         </div>
