@@ -109,7 +109,7 @@ export default function ProfilesPage() {
     if (!anonUserId || !householdId) return
     setLoading(true)
     await supabase.from('profiles').update({ claimed_by: anonUserId }).eq('id', profile.id)
-    setProfileSession({ profileId: profile.id, householdId, displayName: profile.display_name, color: profile.color, avatarUrl: profile.avatar_url })
+    setProfileSession({ profileId: profile.id, householdId: householdId!, displayName: profile.display_name ?? '', color: profile.color ?? '#4ECDC4', avatarUrl: profile.avatar_url ?? null })
     router.replace('/accueil')
   }
 
@@ -165,7 +165,7 @@ export default function ProfilesPage() {
     const { error: hmErr } = await supabase.from('household_members').insert({ household_id: hId, profile_id: profileId, role: householdId ? 'member' : 'admin' })
     if (hmErr && hmErr.code !== '23505') { setError('Erreur ajout membre: ' + hmErr.message); setLoading(false); return }
 
-    setProfileSession({ profileId, householdId: hId!, displayName: profileData.display_name, color: profileData.color, avatarUrl: profileData.avatar_url ?? '' })
+    setProfileSession({ profileId: profileId!, householdId: hId!, displayName: profileData.display_name ?? '', color: profileData.color ?? '#4ECDC4', avatarUrl: profileData.avatar_url ?? null })
     router.replace('/accueil')
   }
 
