@@ -8,7 +8,7 @@ import { Home, CheckSquare, Ticket, Calendar, Trophy } from 'lucide-react'
 const NAV_ITEMS = [
   { href: '/taches', icon: CheckSquare, label: 'Tâches' },
   { href: '/tickets', icon: Ticket, label: 'Tickets' },
-  { href: '/', icon: Home, label: 'Accueil', isHome: true },
+  { href: '/accueil', icon: Home, label: 'Accueil', isHome: true },
   { href: '/calendrier', icon: Calendar, label: 'Calendrier' },
   { href: '/classement', icon: Trophy, label: 'Scores' },
 ]

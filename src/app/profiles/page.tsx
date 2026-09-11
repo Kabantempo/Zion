@@ -46,7 +46,7 @@ export default function ProfilesPage() {
 
   useEffect(() => {
     const session = getProfileSession()
-    if (session) { router.replace('/taches'); return }
+    if (session) { router.replace('/accueil'); return }
     init()
   }, [])
 
@@ -70,7 +70,7 @@ export default function ProfilesPage() {
       ])
       if (membership && pd) {
         setProfileSession({ profileId: pd.id, householdId: membership.household_id, displayName: pd.display_name, color: pd.color, avatarUrl: pd.avatar_url })
-        router.replace('/taches')
+        router.replace('/accueil')
         return
       }
       // Profile exists but no household yet — skip profile creation step
@@ -110,7 +110,7 @@ export default function ProfilesPage() {
     setLoading(true)
     await supabase.from('profiles').update({ claimed_by: anonUserId }).eq('id', profile.id)
     setProfileSession({ profileId: profile.id, householdId, displayName: profile.display_name, color: profile.color, avatarUrl: profile.avatar_url })
-    router.replace('/taches')
+    router.replace('/accueil')
   }
 
   async function handleCreateProfile(e: React.FormEvent) {
@@ -166,7 +166,7 @@ export default function ProfilesPage() {
     if (hmErr && hmErr.code !== '23505') { setError('Erreur ajout membre: ' + hmErr.message); setLoading(false); return }
 
     setProfileSession({ profileId, householdId: hId!, displayName: profileData.display_name, color: profileData.color, avatarUrl: profileData.avatar_url })
-    router.replace('/taches')
+    router.replace('/accueil')
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {

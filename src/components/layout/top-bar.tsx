@@ -7,7 +7,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { getProfileSession, type ProfileSession } from '@/lib/profile-session'
 
 const TITLES: Record<string, string> = {
-  '/': 'Accueil',
+  '/accueil': 'Accueil',
   '/taches': 'Tâches',
   '/tickets': 'Tickets',
   '/calendrier': 'Calendrier',
