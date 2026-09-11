@@ -1,0 +1,172 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Avatar } from '@/components/ui/avatar'
+import type { Ticket, Profile } from '@/types'
+
+const STATUS_LABELS: Record<string, string> = { todo: 'À faire', in_progress: 'En cours', done: 'Fait ✓' }
+const STATUS_BADGE: Record<string, 'default' | 'warning' | 'success'> = { todo: 'default', in_progress: 'warning', done: 'success' }
+const COLUMNS: Array<{ status: Ticket['status']; label: string }> = [
+  { status: 'todo', label: 'À faire' },
+  { status: 'in_progress', label: 'En cours' },
+  { status: 'done', label: 'Fait' },
+]
+
+interface Props {
+  tickets: Ticket[]
+  profiles: Profile[]
+  taskTypes: { id: string; label: string }[]
+  householdId: string
+  userId: string
+}
+
+export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, householdId, userId }: Props) {
+  const router = useRouter()
+  const supabase = createClient()
+  const [tickets, setTickets] = useState(initialTickets)
+  const [showCreate, setShowCreate] = useState(false)
+  const [loading, setLoading] = useState<string | null>(null)
+  const [filter, setFilter] = useState<'all' | 'mine'>('all')
+
+  // Form state
+  const [title, setTitle] = useState('')
+  const [assignedTo, setAssignedTo] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [note, setNote] = useState('')
+
+  const displayTickets = filter === 'mine' ? tickets.filter((t) => t.assigned_to === userId) : tickets
+
+  async function createTicket(e: React.FormEvent) {
+    e.preventDefault()
+    if (!title.trim()) return
+    setLoading('create')
+    const { data, error } = await supabase.from('tickets').insert({
+      household_id: householdId,
+      title: title.trim(),
+      assigned_to: assignedTo || null,
+      due_date: dueDate || null,
+      note: note || null,
+      status: 'todo',
+      created_by: userId,
+    }).select('*, assignee:profiles!assigned_to(id, display_name, color, avatar_url)').single()
+
+    if (!error && data) {
+      setTickets((prev) => [data as Ticket, ...prev])
+      setTitle(''); setAssignedTo(''); setDueDate(''); setNote(''); setShowCreate(false)
+    }
+    setLoading(null)
+  }
+
+  async function moveTicket(ticket: Ticket, newStatus: Ticket['status']) {
+    setLoading(ticket.id)
+    const update: Partial<Ticket> = { status: newStatus }
+    if (newStatus === 'done') {
+      update.completed_by = userId
+      update.completed_at = new Date().toISOString()
+    }
+    const { error } = await supabase.from('tickets').update(update).eq('id', ticket.id)
+    if (!error) {
+      setTickets((prev) => prev.map((t) => t.id === ticket.id ? { ...t, ...update } : t))
+    }
+    setLoading(null)
+  }
+
+  return (
+    <div className="p-4 flex flex-col gap-4 animate-slide-up">
+      <div className="flex items-center gap-2">
+        <div className="flex p-1 bg-[#1a1a24] rounded-xl border border-[#2e2e3e] flex-1">
+          {(['all', 'mine'] as const).map((f) => (
+            <button key={f} onClick={() => setFilter(f)} className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${filter === f ? 'bg-indigo-500 text-white' : 'text-[#8888a0]'}`}>
+              {f === 'all' ? 'Tous' : 'Les miens'}
+            </button>
+          ))}
+        </div>
+        <Button onClick={() => setShowCreate(true)}>+ Ticket</Button>
+      </div>
+
+      {COLUMNS.map(({ status, label }) => {
+        const col = displayTickets.filter((t) => t.status === status)
+        return (
+          <div key={status}>
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <h3 className="text-sm font-semibold text-[#8888a0]">{label}</h3>
+              <span className="text-xs bg-[#2e2e3e] text-[#8888a0] px-2 py-0.5 rounded-full">{col.length}</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {col.map((ticket) => (
+                <Card key={ticket.id}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <p className="text-sm font-medium text-[#f0f0f5] flex-1">{ticket.title}</p>
+                    <Badge variant={STATUS_BADGE[ticket.status]}>{STATUS_LABELS[ticket.status]}</Badge>
+                  </div>
+                  {ticket.assignee && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <Avatar name={(ticket.assignee as Profile).display_name} color={(ticket.assignee as Profile).color} size="sm" />
+                      <span className="text-xs text-[#8888a0]">{(ticket.assignee as Profile).display_name}</span>
+                    </div>
+                  )}
+                  {ticket.due_date && (
+                    <p className="text-xs text-[#8888a0] mb-2">⏰ {new Date(ticket.due_date).toLocaleDateString('fr-FR')}</p>
+                  )}
+                  {ticket.note && <p className="text-xs text-[#555570] mb-2 italic">{ticket.note}</p>}
+                  <div className="flex gap-2 mt-1">
+                    {status === 'todo' && (
+                      <Button size="sm" variant="secondary" className="flex-1" loading={loading === ticket.id} onClick={() => moveTicket(ticket, 'in_progress')}>
+                        Commencer →
+                      </Button>
+                    )}
+                    {status === 'in_progress' && (
+                      <Button size="sm" className="flex-1" loading={loading === ticket.id} onClick={() => moveTicket(ticket, 'done')}>
+                        Marquer fait ✓
+                      </Button>
+                    )}
+                    {status === 'todo' && !ticket.assigned_to && (
+                      <Button size="sm" variant="secondary" loading={loading === ticket.id} onClick={() => {
+                        setLoading(ticket.id)
+                        supabase.from('tickets').update({ assigned_to: userId }).eq('id', ticket.id)
+                          .then(() => { setTickets((p) => p.map((t) => t.id === ticket.id ? { ...t, assigned_to: userId } : t)); setLoading(null) })
+                      }}>
+                        Prendre
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              ))}
+              {col.length === 0 && (
+                <p className="text-xs text-[#555570] text-center py-4">Aucun ticket</p>
+              )}
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Create sheet */}
+      {showCreate && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setShowCreate(false)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()} onSubmit={createTicket}>
+            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+            <h3 className="text-base font-bold text-[#f0f0f5]">Nouveau ticket</h3>
+            <Input label="Titre" placeholder="Changer l'ampoule du salon" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <div>
+              <p className="text-sm font-medium text-[#8888a0] mb-1.5">Assigner à</p>
+              <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-indigo-500">
+                <option value="">Personne (à prendre)</option>
+                {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
+              </select>
+            </div>
+            <Input label="Échéance (optionnel)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <Input label="Note (optionnel)" placeholder="Plus d'infos..." value={note} onChange={(e) => setNote(e.target.value)} />
+            <Button type="submit" loading={loading === 'create'} className="w-full">Créer le ticket</Button>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
