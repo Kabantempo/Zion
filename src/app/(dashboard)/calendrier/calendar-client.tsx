@@ -147,7 +147,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
     const weekLastDate = toDateStr(validDays[validDays.length - 1].d)
     const bars: { event: CalendarEvent; colStart: number; colEnd: number; isStart: boolean; isEnd: boolean }[] = []
     filteredEvents.forEach(e => {
-      if (e.type === 'birthday') return
+      if ((e.type as string) === 'birthday') return
       const eStart = e.start.slice(0, 10)
       const eEnd = (e.end || e.start).slice(0, 10)
       if (eStart >= eEnd) return
@@ -192,7 +192,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
     const d = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     const md = `${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     return filteredEvents.filter((e) => {
-      if (e.type === 'birthday') {
+      if ((e.type as string) === 'birthday') {
         // Recurring: match same month-day every year
         return e.start.slice(5, 10) === md
       }
@@ -320,7 +320,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
               {weekDays.map((day, di) => {
                 if (!day) return <div key={`empty-${wi}-${di}`} />
                 const dayEvents = eventsForDay(day)
-                const singleDayEvs = dayEvents.filter(e => e.type === 'birthday' || e.start.slice(0, 10) === (e.end || e.start).slice(0, 10))
+                const singleDayEvs = dayEvents.filter(e => (e.type as string) === 'birthday' || e.start.slice(0, 10) === (e.end || e.start).slice(0, 10))
                 const cellBars = barsWithLanes.filter(b => di >= b.colStart && di <= b.colEnd).sort((a, b) => a.lane - b.lane)
                 const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear()
                 const isSelected = selectedDay === day
