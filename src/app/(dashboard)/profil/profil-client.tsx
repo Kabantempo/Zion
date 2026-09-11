@@ -87,16 +87,6 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
         <Card>
           <h3 className="text-sm font-semibold text-[#8888a0] mb-3">Ma colocation</h3>
           <p className="text-lg font-bold text-[#f0f0f5] mb-3">{household.name}</p>
-          <div className="flex items-center gap-2 p-3 bg-[#22222e] rounded-xl mb-4">
-            <div>
-              <p className="text-xs text-[#8888a0]">Code d'invitation</p>
-              <p className="text-xl font-black text-red-400 tracking-widest">{household.invite_code}</p>
-            </div>
-            <Button variant="secondary" size="sm" className="ml-auto" onClick={copyInviteCode}>
-              {codeCopied ? '✓ Copié' : '📋 Copier'}
-            </Button>
-          </div>
-
           <h4 className="text-sm font-semibold text-[#8888a0] mb-2">Membres ({members.length})</h4>
           <div className="flex flex-col gap-2">
             {members.map((m) => {

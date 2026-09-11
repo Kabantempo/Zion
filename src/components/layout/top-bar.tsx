@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
-import { getProfileSession } from '@/lib/profile-session'
+import { getProfileSession, type ProfileSession } from '@/lib/profile-session'
 
 const TITLES: Record<string, string> = {
   '/': 'Accueil',
@@ -18,7 +19,8 @@ const TITLES: Record<string, string> = {
 export function TopBar() {
   const pathname = usePathname()
   const title = TITLES[pathname] ?? 'Zion'
-  const session = getProfileSession()
+  const [session, setSession] = useState<ProfileSession | null>(null)
+  useEffect(() => { setSession(getProfileSession()) }, [])
 
   return (
     <header className="sticky top-0 z-40 bg-[#0f0f13]/90 backdrop-blur-lg border-b border-[#2e2e3e]">
