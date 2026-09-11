@@ -1,42 +1,50 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { getProfileSession } from '@/lib/profile-session'
 import type { Ticket, Profile } from '@/types'
 import { TicketsClient } from './tickets-client'
 
-export default async function TicketsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+export default function TicketsPage() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  const { data: membership } = await supabase
-    .from('household_members')
-    .select('household_id')
-    .eq('user_id', user.id)
-    .single()
-  if (!membership) redirect('/onboarding')
+  useEffect(() => {
+    const session = getProfileSession()
+    if (!session) { router.replace('/profiles'); return }
+    load(session.profileId, session.householdId)
+  }, [])
 
-  const householdId = membership.household_id
+  async function load(profileId: string, householdId: string) {
+    const [{ data: tickets }, { data: members }, { data: taskTypes }] = await Promise.all([
+      supabase.from('tickets')
+        .select('*, assignee:profiles!assigned_to(id, display_name, color, avatar_url), creator:profiles!created_by(display_name)')
+        .eq('household_id', householdId)
+        .order('created_at', { ascending: false }),
+      supabase.from('household_members')
+        .select('profile_id, profile:profiles(id, display_name, color, avatar_url)')
+        .eq('household_id', householdId),
+      supabase.from('task_types').select('id, label').eq('household_id', householdId),
+    ])
 
-  const [{ data: tickets }, { data: members }, { data: taskTypes }] = await Promise.all([
-    supabase.from('tickets')
-      .select('*, assignee:profiles!assigned_to(id, display_name, color, avatar_url), creator:profiles!created_by(display_name)')
-      .eq('household_id', householdId)
-      .order('created_at', { ascending: false }),
-    supabase.from('household_members')
-      .select('user_id, profile:profiles(id, display_name, color, avatar_url)')
-      .eq('household_id', householdId),
-    supabase.from('task_types').select('id, label').eq('household_id', householdId),
-  ])
+    const profiles = (members ?? []).map((m: any) => Array.isArray(m.profile) ? m.profile[0] : m.profile).filter(Boolean) as Profile[]
+    setData({ tickets: tickets ?? [], profiles, taskTypes: taskTypes ?? [], householdId, profileId })
+    setLoading(false)
+  }
 
-  const profiles = (members ?? []).map((m) => Array.isArray(m.profile) ? m.profile[0] : m.profile).filter(Boolean) as Profile[]
+  if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
   return (
     <TicketsClient
-      tickets={(tickets ?? []) as Ticket[]}
-      profiles={profiles}
-      taskTypes={taskTypes ?? []}
-      householdId={householdId}
-      userId={user.id}
+      tickets={data.tickets as Ticket[]}
+      profiles={data.profiles}
+      taskTypes={data.taskTypes}
+      householdId={data.householdId}
+      profileId={data.profileId}
     />
   )
 }

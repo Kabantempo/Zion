@@ -10,7 +10,7 @@ import type { TaskType } from '@/types'
 interface Props {
   taskTypes: TaskType[]
   householdId: string
-  userId: string
+  profileId: string
 }
 
 const CATEGORIES = ['Cuisine', 'Sol', 'Salle de bain', 'Poubelles', 'Courses', 'Salon', 'Autre']
@@ -21,7 +21,7 @@ const FREQUENCIES = [
   { value: 'as_needed', label: 'Selon besoin' },
 ]
 
-export function TaskActions({ taskTypes, householdId, userId }: Props) {
+export function TaskActions({ taskTypes, householdId, profileId }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [showLog, setShowLog] = useState(false)
@@ -40,7 +40,7 @@ export function TaskActions({ taskTypes, householdId, userId }: Props) {
     const { error } = await supabase.from('task_logs').insert({
       household_id: householdId,
       task_type_id: task.id,
-      done_by: userId,
+      done_by: profileId,
       done_at: new Date().toISOString(),
       points_awarded: task.points,
     })
@@ -124,7 +124,7 @@ export function TaskActions({ taskTypes, householdId, userId }: Props) {
               <p className="text-sm font-medium text-[#8888a0] mb-1.5">Catégorie</p>
               <div className="flex flex-wrap gap-2">
                 {CATEGORIES.map((c) => (
-                  <button key={c} type="button" onClick={() => setCategory(c)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${category === c ? 'bg-indigo-500 text-white' : 'bg-[#22222e] text-[#8888a0]'}`}>{c}</button>
+                  <button key={c} type="button" onClick={() => setCategory(c)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${category === c ? 'bg-red-500 text-white' : 'bg-[#22222e] text-[#8888a0]'}`}>{c}</button>
                 ))}
               </div>
             </div>
@@ -132,7 +132,7 @@ export function TaskActions({ taskTypes, householdId, userId }: Props) {
               <Input label="Points" type="number" value={points} onChange={(e) => setPoints(e.target.value)} min="1" max="100" className="w-24" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-[#8888a0] mb-1.5">Fréquence</p>
-                <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-indigo-500">
+                <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-red-500">
                   {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
               </div>

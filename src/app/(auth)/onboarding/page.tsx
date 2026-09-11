@@ -118,10 +118,10 @@ export default function OnboardingPage() {
         <div className="flex gap-2 mb-8 justify-center">
           {STEP_LABELS.map((label, i) => (
             <div key={i} className="flex items-center gap-2">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${i <= step ? 'bg-indigo-500 text-white' : 'bg-[#2e2e3e] text-[#555570]'}`}>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${i <= step ? 'bg-red-500 text-white' : 'bg-[#2e2e3e] text-[#555570]'}`}>
                 {i < step ? '✓' : i + 1}
               </div>
-              {i < STEP_LABELS.length - 1 && <div className={`w-8 h-0.5 ${i < step ? 'bg-indigo-500' : 'bg-[#2e2e3e]'}`} />}
+              {i < STEP_LABELS.length - 1 && <div className={`w-8 h-0.5 ${i < step ? 'bg-red-500' : 'bg-[#2e2e3e]'}`} />}
             </div>
           ))}
         </div>
@@ -187,7 +187,7 @@ export default function OnboardingPage() {
                   key={m}
                   type="button"
                   onClick={() => setMode(m)}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === m ? 'bg-indigo-500 text-white' : 'text-[#8888a0]'}`}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === m ? 'bg-red-500 text-white' : 'text-[#8888a0]'}`}
                 >
                   {m === 'create' ? '🏠 Créer' : '🔑 Rejoindre'}
                 </button>

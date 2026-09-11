@@ -18,7 +18,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           'inline-flex items-center justify-center gap-2 font-medium rounded-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed',
           {
-            'bg-indigo-500 hover:bg-indigo-400 text-white': variant === 'primary',
+            'bg-red-500 hover:bg-red-400 text-white': variant === 'primary',
             'bg-[#22222e] hover:bg-[#2a2a3e] text-[#f0f0f5] border border-[#2e2e3e]': variant === 'secondary',
             'bg-transparent hover:bg-[#22222e] text-[#8888a0] hover:text-[#f0f0f5]': variant === 'ghost',
             'bg-red-500/10 hover:bg-red-500/20 text-red-400': variant === 'danger',

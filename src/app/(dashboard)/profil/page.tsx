@@ -1,43 +1,53 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { getProfileSession } from '@/lib/profile-session'
 import type { Profile, HouseholdMember } from '@/types'
 import { ProfilClient } from './profil-client'
 
-export default async function ProfilPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+export default function ProfilPage() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  const { data: membership } = await supabase
-    .from('household_members')
-    .select('household_id, role')
-    .eq('user_id', user.id)
-    .single()
-  if (!membership) redirect('/onboarding')
+  useEffect(() => {
+    const session = getProfileSession()
+    if (!session) { router.replace('/profiles'); return }
+    load(session.profileId, session.householdId)
+  }, [])
 
-  const householdId = membership.household_id
+  async function load(profileId: string, householdId: string) {
+    const [{ data: profile }, { data: membership }, { data: household }, { data: members }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', profileId).single(),
+      supabase.from('household_members').select('role').eq('household_id', householdId).eq('profile_id', profileId).single(),
+      supabase.from('households').select('*').eq('id', householdId).single(),
+      supabase.from('household_members').select('profile_id, role, joined_at, profile:profiles(id, display_name, color, avatar_url)').eq('household_id', householdId),
+    ])
 
-  const [{ data: profile }, { data: household }, { data: members }] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('households').select('*').eq('id', householdId).single(),
-    supabase.from('household_members')
-      .select('user_id, role, joined_at, profile:profiles(id, display_name, color, avatar_url)')
-      .eq('household_id', householdId),
-  ])
+    const normalizedMembers = (members ?? []).map((m: any) => ({
+      household_id: householdId,
+      profile_id: m.profile_id,
+      role: m.role,
+      joined_at: m.joined_at,
+      profile: Array.isArray(m.profile) ? m.profile[0] : m.profile,
+    })) as HouseholdMember[]
 
-  const normalizedMembers = (members ?? []).map((m) => ({
-    ...m,
-    household_id: householdId,
-    profile: Array.isArray(m.profile) ? m.profile[0] : m.profile,
-  })) as HouseholdMember[]
+    setData({ profile, household, members: normalizedMembers, profileId, isAdmin: membership?.role === 'admin' })
+    setLoading(false)
+  }
+
+  if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
   return (
     <ProfilClient
-      profile={profile as Profile}
-      household={household}
-      members={normalizedMembers}
-      userId={user.id}
-      isAdmin={membership.role === 'admin'}
+      profile={data.profile as Profile}
+      household={data.household}
+      members={data.members}
+      profileId={data.profileId}
+      isAdmin={data.isAdmin}
     />
   )
 }

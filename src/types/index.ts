@@ -21,7 +21,7 @@ export interface Household {
 
 export interface HouseholdMember {
   household_id: string
-  user_id: string
+  profile_id: string
   role: UserRole
   joined_at: string
   profile?: Profile

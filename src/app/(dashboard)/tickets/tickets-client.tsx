@@ -23,10 +23,10 @@ interface Props {
   profiles: Profile[]
   taskTypes: { id: string; label: string }[]
   householdId: string
-  userId: string
+  profileId: string
 }
 
-export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, householdId, userId }: Props) {
+export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, householdId, profileId }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [tickets, setTickets] = useState(initialTickets)
@@ -40,7 +40,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   const [dueDate, setDueDate] = useState('')
   const [note, setNote] = useState('')
 
-  const displayTickets = filter === 'mine' ? tickets.filter((t) => t.assigned_to === userId) : tickets
+  const displayTickets = filter === 'mine' ? tickets.filter((t) => t.assigned_to === profileId) : tickets
 
   async function createTicket(e: React.FormEvent) {
     e.preventDefault()
@@ -53,7 +53,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
       due_date: dueDate || null,
       note: note || null,
       status: 'todo',
-      created_by: userId,
+      created_by: profileId,
     }).select('*, assignee:profiles!assigned_to(id, display_name, color, avatar_url)').single()
 
     if (!error && data) {
@@ -67,7 +67,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
     setLoading(ticket.id)
     const update: Partial<Ticket> = { status: newStatus }
     if (newStatus === 'done') {
-      update.completed_by = userId
+      update.completed_by = profileId
       update.completed_at = new Date().toISOString()
     }
     const { error } = await supabase.from('tickets').update(update).eq('id', ticket.id)
@@ -82,7 +82,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
       <div className="flex items-center gap-2">
         <div className="flex p-1 bg-[#1a1a24] rounded-xl border border-[#2e2e3e] flex-1">
           {(['all', 'mine'] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${filter === f ? 'bg-indigo-500 text-white' : 'text-[#8888a0]'}`}>
+            <button key={f} onClick={() => setFilter(f)} className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${filter === f ? 'bg-red-500 text-white' : 'text-[#8888a0]'}`}>
               {f === 'all' ? 'Tous' : 'Les miens'}
             </button>
           ))}
@@ -129,8 +129,8 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                     {status === 'todo' && !ticket.assigned_to && (
                       <Button size="sm" variant="secondary" loading={loading === ticket.id} onClick={() => {
                         setLoading(ticket.id)
-                        supabase.from('tickets').update({ assigned_to: userId }).eq('id', ticket.id)
-                          .then(() => { setTickets((p) => p.map((t) => t.id === ticket.id ? { ...t, assigned_to: userId } : t)); setLoading(null) })
+                        supabase.from('tickets').update({ assigned_to: profileId }).eq('id', ticket.id)
+                          .then(() => { setTickets((p) => p.map((t) => t.id === ticket.id ? { ...t, assigned_to: profileId } : t)); setLoading(null) })
                       }}>
                         Prendre
                       </Button>
@@ -156,7 +156,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
             <Input label="Titre" placeholder="Changer l'ampoule du salon" value={title} onChange={(e) => setTitle(e.target.value)} required />
             <div>
               <p className="text-sm font-medium text-[#8888a0] mb-1.5">Assigner à</p>
-              <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-indigo-500">
+              <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-red-500">
                 <option value="">Personne (à prendre)</option>
                 {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
               </select>

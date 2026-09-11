@@ -21,10 +21,10 @@ interface Props {
   events: CalendarEvent[]
   profiles: Profile[]
   householdId: string
-  userId: string
+  profileId: string
 }
 
-export function CalendarClient({ events: initialEvents, profiles, householdId, userId }: Props) {
+export function CalendarClient({ events: initialEvents, profiles, householdId, profileId }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const now = new Date()
@@ -42,7 +42,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, u
   const [endDate, setEndDate] = useState('')
 
   // Profile color
-  const myProfile = profiles.find((p) => p.id === userId)
+  const myProfile = profiles.find((p) => p.id === profileId)
 
   const firstDay = new Date(year, month, 1)
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -70,7 +70,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, u
       type,
       start: startDate,
       end: endDate || startDate,
-      created_by: userId,
+      created_by: profileId,
       color: myProfile?.color ?? '#6366f1',
     }).select('*, creator:profiles!created_by(display_name, color)').single()
 
@@ -112,8 +112,8 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, u
               key={day}
               onClick={() => setSelectedDay(isSelected ? null : day)}
               className={`relative aspect-square flex flex-col items-center justify-start pt-1 rounded-xl text-sm font-medium transition-all active:scale-95 ${
-                isSelected ? 'bg-indigo-500 text-white' :
-                isToday ? 'bg-indigo-500/20 text-indigo-400' :
+                isSelected ? 'bg-red-500 text-white' :
+                isToday ? 'bg-red-500/20 text-red-400' :
                 'bg-[#1a1a24] text-[#f0f0f5] hover:bg-[#22222e]'
               }`}
             >
@@ -174,7 +174,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, u
               <p className="text-sm font-medium text-[#8888a0] mb-1.5">Type</p>
               <div className="flex flex-wrap gap-2">
                 {EVENT_TYPES.map((t) => (
-                  <button key={t.value} type="button" onClick={() => setType(t.value)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${type === t.value ? 'bg-indigo-500 text-white' : 'bg-[#22222e] text-[#8888a0]'}`}>{t.label}</button>
+                  <button key={t.value} type="button" onClick={() => setType(t.value)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${type === t.value ? 'bg-red-500 text-white' : 'bg-[#22222e] text-[#8888a0]'}`}>{t.label}</button>
                 ))}
               </div>
             </div>

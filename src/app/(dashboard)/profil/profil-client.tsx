@@ -16,11 +16,11 @@ interface Props {
   profile: Profile
   household: { id: string; name: string; invite_code: string } | null
   members: HouseholdMember[]
-  userId: string
+  profileId: string
   isAdmin: boolean
 }
 
-export function ProfilClient({ profile, household, members, userId, isAdmin }: Props) {
+export function ProfilClient({ profile, household, members, profileId, isAdmin }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [displayName, setDisplayName] = useState(profile.display_name)
@@ -32,7 +32,7 @@ export function ProfilClient({ profile, household, members, userId, isAdmin }: P
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('profiles').update({ display_name: displayName.trim(), color }).eq('id', userId)
+    await supabase.from('profiles').update({ display_name: displayName.trim(), color }).eq('id', profileId)
     setSaved(true)
     setLoading(false)
     setTimeout(() => { setSaved(false); router.refresh() }, 1500)
@@ -90,7 +90,7 @@ export function ProfilClient({ profile, household, members, userId, isAdmin }: P
           <div className="flex items-center gap-2 p-3 bg-[#22222e] rounded-xl mb-4">
             <div>
               <p className="text-xs text-[#8888a0]">Code d'invitation</p>
-              <p className="text-xl font-black text-indigo-400 tracking-widest">{household.invite_code}</p>
+              <p className="text-xl font-black text-red-400 tracking-widest">{household.invite_code}</p>
             </div>
             <Button variant="secondary" size="sm" className="ml-auto" onClick={copyInviteCode}>
               {codeCopied ? '✓ Copié' : '📋 Copier'}
@@ -103,11 +103,11 @@ export function ProfilClient({ profile, household, members, userId, isAdmin }: P
               const p = m.profile as Profile | undefined
               if (!p) return null
               return (
-                <div key={m.user_id} className="flex items-center gap-3">
+                <div key={m.profile_id} className="flex items-center gap-3">
                   <Avatar name={p.display_name} color={p.color} avatarUrl={p.avatar_url} size="sm" />
                   <span className="text-sm text-[#f0f0f5] flex-1">{p.display_name}</span>
                   {m.role === 'admin' && <Badge variant="info">Admin</Badge>}
-                  {m.user_id === userId && <Badge variant="default">Moi</Badge>}
+                  {m.profile_id === profileId && <Badge variant="default">Moi</Badge>}
                 </div>
               )
             })}

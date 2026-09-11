@@ -70,7 +70,7 @@ export default function LoginPage() {
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === m ? 'bg-indigo-500 text-white' : 'text-[#8888a0]'}`}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${mode === m ? 'bg-red-500 text-white' : 'text-[#8888a0]'}`}
             >
               {m === 'login' ? 'Connexion' : 'Inscription'}
             </button>

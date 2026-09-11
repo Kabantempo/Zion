@@ -9,31 +9,29 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
+        getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
+          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
         },
       },
     }
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/onboarding')
 
-  if (!user && !isAuthRoute) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  const isProfilesRoute = pathname === '/profiles' || pathname.startsWith('/profiles')
+
+  // Let through static/api routes
+  if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.startsWith('/icons')) {
+    return supabaseResponse
   }
 
-  if (user && pathname === '/login') {
-    return NextResponse.redirect(new URL('/', request.url))
+  // If no session at all, redirect to profiles (will auto-anon-sign-in there)
+  if (!user && !isProfilesRoute) {
+    return NextResponse.redirect(new URL('/profiles', request.url))
   }
 
   return supabaseResponse

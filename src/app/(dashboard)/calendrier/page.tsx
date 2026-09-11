@@ -1,45 +1,54 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { getProfileSession } from '@/lib/profile-session'
 import type { CalendarEvent, Profile } from '@/types'
 import { CalendarClient } from './calendar-client'
 
-export default async function CalendrierPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+export default function CalendrierPage() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  const { data: membership } = await supabase
-    .from('household_members')
-    .select('household_id')
-    .eq('user_id', user.id)
-    .single()
-  if (!membership) redirect('/onboarding')
+  useEffect(() => {
+    const session = getProfileSession()
+    if (!session) { router.replace('/profiles'); return }
+    load(session.profileId, session.householdId)
+  }, [])
 
-  const householdId = membership.household_id
-  const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString()
+  async function load(profileId: string, householdId: string) {
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString()
 
-  const [{ data: events }, { data: members }] = await Promise.all([
-    supabase.from('events')
-      .select('*, creator:profiles!created_by(display_name, color)')
-      .eq('household_id', householdId)
-      .gte('start', startOfMonth)
-      .lte('start', endOfMonth)
-      .order('start'),
-    supabase.from('household_members')
-      .select('user_id, profile:profiles(id, display_name, color)')
-      .eq('household_id', householdId),
-  ])
+    const [{ data: events }, { data: members }] = await Promise.all([
+      supabase.from('events')
+        .select('*, creator:profiles!created_by(display_name, color)')
+        .eq('household_id', householdId)
+        .gte('start', startOfMonth)
+        .lte('start', endOfMonth)
+        .order('start'),
+      supabase.from('household_members')
+        .select('profile_id, profile:profiles(id, display_name, color)')
+        .eq('household_id', householdId),
+    ])
 
-  const profiles = (members ?? []).map((m) => Array.isArray(m.profile) ? m.profile[0] : m.profile).filter(Boolean) as Profile[]
+    const profiles = (members ?? []).map((m: any) => Array.isArray(m.profile) ? m.profile[0] : m.profile).filter(Boolean) as Profile[]
+    setData({ events: events ?? [], profiles, householdId, profileId })
+    setLoading(false)
+  }
+
+  if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
   return (
     <CalendarClient
-      events={(events ?? []) as CalendarEvent[]}
-      profiles={profiles}
-      householdId={householdId}
-      userId={user.id}
+      events={data.events as CalendarEvent[]}
+      profiles={data.profiles}
+      householdId={data.householdId}
+      profileId={data.profileId}
     />
   )
 }

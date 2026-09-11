@@ -28,12 +28,12 @@ export function BottomNav() {
               className={cn(
                 'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all',
                 isActive
-                  ? 'text-indigo-400'
+                  ? 'text-red-400'
                   : 'text-[#555570] hover:text-[#8888a0]'
               )}
             >
               <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
-              <span className={cn('text-[10px] font-medium', isActive && 'text-indigo-400')}>
+              <span className={cn('text-[10px] font-medium', isActive && 'text-red-400')}>
                 {label}
               </span>
             </Link>

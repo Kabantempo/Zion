@@ -9,10 +9,10 @@ import type { TaskType } from '@/types'
 interface Props {
   taskTypes: TaskType[]
   householdId: string
-  userId: string
+  profileId: string
 }
 
-export function QuickTaskButton({ taskTypes, householdId, userId }: Props) {
+export function QuickTaskButton({ taskTypes, householdId, profileId }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
@@ -31,7 +31,7 @@ export function QuickTaskButton({ taskTypes, householdId, userId }: Props) {
     const { error } = await supabase.from('task_logs').insert({
       household_id: householdId,
       task_type_id: task.id,
-      done_by: userId,
+      done_by: profileId,
       done_at: new Date().toISOString(),
       points_awarded: task.points,
     })
