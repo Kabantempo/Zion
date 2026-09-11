@@ -33,6 +33,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'mine'>('all')
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   // Form state
   const [title, setTitle] = useState('')
@@ -61,12 +62,23 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
     setLoading(null)
   }
 
+  async function deleteTicket(ticketId: string) {
+    setLoading(ticketId)
+    const { error } = await supabase.from('tickets').delete().eq('id', ticketId)
+    if (!error) setTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    setConfirmDelete(null)
+    setLoading(null)
+  }
+
   async function moveTicket(ticket: Ticket, newStatus: Ticket['status']) {
     setLoading(ticket.id)
     const update: Partial<Ticket> = { status: newStatus }
     if (newStatus === 'done') {
       update.completed_by = profileId
       update.completed_at = new Date().toISOString()
+    } else {
+      update.completed_by = null
+      update.completed_at = null
     }
     const { error } = await supabase.from('tickets').update(update).eq('id', ticket.id)
     if (!error) {
@@ -111,6 +123,16 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                   )}
                   {ticket.note && <p className="text-xs text-[#555570] mb-2 italic">{ticket.note}</p>}
                   <div className="flex gap-2 mt-1">
+                    {status === 'in_progress' && (
+                      <Button size="sm" variant="secondary" loading={loading === ticket.id} onClick={() => moveTicket(ticket, 'todo')}>
+                        ← Retour
+                      </Button>
+                    )}
+                    {status === 'done' && (
+                      <Button size="sm" variant="secondary" loading={loading === ticket.id} onClick={() => moveTicket(ticket, 'in_progress')}>
+                        ← Rouvrir
+                      </Button>
+                    )}
                     {status === 'todo' && (
                       <Button size="sm" variant="secondary" className="flex-1" loading={loading === ticket.id} onClick={() => moveTicket(ticket, 'in_progress')}>
                         Commencer →
@@ -129,6 +151,16 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                       }}>
                         Prendre
                       </Button>
+                    )}
+                    {confirmDelete === ticket.id ? (
+                      <div className="flex gap-1 ml-auto">
+                        <button onClick={() => deleteTicket(ticket.id)} className="text-xs text-red-400 font-semibold px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20">Oui, supprimer</button>
+                        <button onClick={() => setConfirmDelete(null)} className="text-xs text-[#7070a0] px-2 py-1 rounded-lg hover:bg-[#2e2e3e]">Annuler</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmDelete(ticket.id)} className="ml-auto text-[#555570] hover:text-red-400 transition-colors p-1">
+                        🗑
+                      </button>
                     )}
                   </div>
                 </Card>

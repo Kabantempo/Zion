@@ -276,7 +276,10 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
       <div className="flex items-center justify-between">
         <button onClick={prevMonth} className="p-2 rounded-xl bg-[#1a1a24] border border-[#2e2e3e] text-[#f0f0f5] active:scale-95">←</button>
         <h2 className="text-lg font-bold text-[#f0f0f5]">{MONTH_NAMES[month]} {year}</h2>
-        <button onClick={nextMonth} className="p-2 rounded-xl bg-[#1a1a24] border border-[#2e2e3e] text-[#f0f0f5] active:scale-95">→</button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setShowCreate(true)}>+ Événement</Button>
+          <button onClick={nextMonth} className="p-2 rounded-xl bg-[#1a1a24] border border-[#2e2e3e] text-[#f0f0f5] active:scale-95">→</button>
+        </div>
       </div>
 
       {/* Type filters */}
@@ -369,7 +372,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
         <div>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-[#8888a0]">{selectedDay} {MONTH_NAMES[month]}</h3>
-            <Button size="sm" onClick={() => { setStartDate(`${year}-${String(month+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`); setShowCreate(true) }}>+ Événement</Button>
+            <button onClick={() => { setStartDate(`${year}-${String(month+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`); setShowCreate(true) }} className="text-xs text-[#7070a0] hover:text-red-400 transition-colors">+ ajouter</button>
           </div>
           {selectedDayEvents.length === 0 ? (
             <p className="text-xs text-[#555570] text-center py-4">Rien prévu ce jour</p>
@@ -396,8 +399,6 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
           )}
         </div>
       )}
-
-      <Button variant="secondary" onClick={() => setShowCreate(true)}>+ Ajouter un événement</Button>
 
       {/* Create event sheet */}
       {showCreate && createPortal(

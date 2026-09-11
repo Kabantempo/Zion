@@ -111,8 +111,9 @@ export default function TachesPage() {
   const supabase = createClient()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [celebration, setCelebration] = useState<{ label: string; points: number } | null>(null)
+  const [celebration, setCelebration] = useState<{ label: string; points: number; logId: string; taskId: string } | null>(null)
   const [doneTodayIds, setDoneTodayIds] = useState<Set<string>>(new Set())
+  const celebrationTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const session = getProfileSession()
@@ -151,23 +152,29 @@ export default function TachesPage() {
 
   const logTask = useCallback(async (task: TaskType) => {
     if (!data || doneTodayIds.has(task.id)) return
-    // Optimistic update
     setDoneTodayIds(prev => new Set([...prev, task.id]))
-    const { error } = await supabase.from('task_logs').insert({
+    const { data: inserted, error } = await supabase.from('task_logs').insert({
       household_id: data.householdId,
       task_type_id: task.id,
       done_by: data.profileId,
       done_at: new Date().toISOString(),
       points_awarded: task.points,
-    })
-    if (!error) {
-      setCelebration({ label: task.label, points: task.points })
-      setTimeout(() => { setCelebration(null); router.refresh() }, 2000)
+    }).select('id').single()
+    if (!error && inserted) {
+      if (celebrationTimer.current) clearTimeout(celebrationTimer.current)
+      setCelebration({ label: task.label, points: task.points, logId: inserted.id, taskId: task.id })
+      celebrationTimer.current = setTimeout(() => { setCelebration(null); router.refresh() }, 3000)
     } else {
-      // Rollback on error
       setDoneTodayIds(prev => { const s = new Set(prev); s.delete(task.id); return s })
     }
   }, [data, doneTodayIds])
+
+  const undoTask = useCallback(async (logId: string, taskId: string) => {
+    if (celebrationTimer.current) clearTimeout(celebrationTimer.current)
+    setCelebration(null)
+    setDoneTodayIds(prev => { const s = new Set(prev); s.delete(taskId); return s })
+    await supabase.from('task_logs').delete().eq('id', logId)
+  }, [])
 
   if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
@@ -176,11 +183,17 @@ export default function TachesPage() {
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
       {celebration && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="bg-[#1a1a24] border border-green-500/30 rounded-2xl p-6 text-center animate-pop-in shadow-2xl">
             <div className="text-5xl mb-3">✅</div>
             <p className="text-lg font-bold text-[#f0f0f5]">{celebration.label}</p>
             <p className="text-3xl font-black text-green-400 mt-2">+{celebration.points} pts !</p>
+            <button
+              onClick={() => undoTask(celebration.logId, celebration.taskId)}
+              className="mt-4 text-xs text-[#7070a0] underline underline-offset-2 hover:text-[#f0f0f5] transition-colors"
+            >
+              Annuler
+            </button>
           </div>
         </div>,
         document.body
