@@ -37,29 +37,31 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
     const file = e.target.files?.[0]
     if (!file) return
     setAvatarFile(file)
-    const reader = new FileReader()
-    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
+    // Resize + compress to base64 via canvas
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      const SIZE = 256
+      const canvas = document.createElement('canvas')
+      canvas.width = SIZE; canvas.height = SIZE
+      const ctx = canvas.getContext('2d')!
+      const ratio = Math.min(SIZE / img.width, SIZE / img.height)
+      const w = img.width * ratio; const h = img.height * ratio
+      ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h)
+      const base64 = canvas.toDataURL('image/jpeg', 0.8)
+      setAvatarPreview(base64)
+      URL.revokeObjectURL(objectUrl)
+    }
+    img.src = objectUrl
   }
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-
-    let avatarUrl = profile.avatar_url ?? null
     setUploadError(null)
 
-    if (avatarFile) {
-      const ext = avatarFile.name.split('.').pop()
-      const path = `${profileId}.${ext}`
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, avatarFile, { upsert: true })
-      if (upErr) {
-        setUploadError('Photo non sauvegardée : ' + upErr.message)
-      } else {
-        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-        avatarUrl = urlData.publicUrl + '?t=' + Date.now()
-      }
-    }
+    // avatarPreview holds the base64 if a new image was picked, otherwise keep existing URL
+    const avatarUrl = avatarFile ? (avatarPreview ?? profile.avatar_url ?? null) : (profile.avatar_url ?? null)
 
     await supabase.from('profiles').update({ display_name: displayName.trim(), color, avatar_url: avatarUrl }).eq('id', profileId)
 
