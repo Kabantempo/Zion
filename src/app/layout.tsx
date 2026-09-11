@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
+import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+
+const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
   title: 'Zion',
@@ -13,7 +17,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#6366f1',
+  themeColor: '#ef4444',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -22,7 +26,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" className={`${geist.variable} ${geistMono.variable}`}>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>

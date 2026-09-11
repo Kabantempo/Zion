@@ -6,9 +6,9 @@ import { cn } from '@/lib/utils'
 import { Home, CheckSquare, Ticket, Calendar, Trophy } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/', icon: Home, label: 'Accueil' },
   { href: '/taches', icon: CheckSquare, label: 'Tâches' },
   { href: '/tickets', icon: Ticket, label: 'Tickets' },
+  { href: '/', icon: Home, label: 'Accueil', isHome: true },
   { href: '/calendrier', icon: Calendar, label: 'Calendrier' },
   { href: '/classement', icon: Trophy, label: 'Scores' },
 ]
@@ -17,28 +17,32 @@ export function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0f0f13]/90 backdrop-blur-lg border-t border-[#2e2e3e] safe-bottom">
-      <div className="flex items-center justify-around px-2 py-2 max-w-lg mx-auto">
-        {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
-          const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all',
-                isActive
-                  ? 'text-red-400'
-                  : 'text-[#555570] hover:text-[#8888a0]'
-              )}
-            >
-              <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
-              <span className={cn('text-[10px] font-medium', isActive && 'text-red-400')}>
-                {label}
-              </span>
-            </Link>
-          )
-        })}
+    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom">
+      <div className="mx-auto max-w-lg px-4 pb-3 pt-0">
+        <div className="flex items-center justify-around bg-[#13131a]/95 backdrop-blur-xl border border-[#252535] rounded-2xl px-2 py-2 shadow-lg shadow-black/40">
+          {NAV_ITEMS.map(({ href, icon: Icon, label, isHome }) => {
+            const isActive = href === '/' ? pathname === '/' || pathname === '/taches' && false : pathname.startsWith(href)
+            const active = pathname === href || (href !== '/' && pathname.startsWith(href))
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 relative',
+                  active ? 'text-red-400' : 'text-[#44445a] hover:text-[#7070a0]'
+                )}
+              >
+                {active && (
+                  <span className="absolute inset-0 bg-red-500/8 rounded-xl" />
+                )}
+                <Icon size={21} strokeWidth={active ? 2.5 : 1.8} className="relative" />
+                <span className={cn('text-[10px] font-semibold tracking-wide relative', active ? 'text-red-400' : '')}>
+                  {label}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
       </div>
     </nav>
   )
