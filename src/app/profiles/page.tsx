@@ -149,7 +149,7 @@ export default function ProfilesPage() {
 
     await supabase.from('household_members').insert({ household_id: hId, profile_id: profile.id, role: householdId ? 'member' : 'admin' })
 
-    setProfileSession({ profileId: profile.id, householdId: hId, displayName: profile.display_name, color: profile.color, avatarUrl: profile.avatar_url })
+    setProfileSession({ profileId: profile.id, householdId: hId!, displayName: profile.display_name, color: profile.color, avatarUrl: profile.avatar_url })
     router.replace('/')
   }
 
