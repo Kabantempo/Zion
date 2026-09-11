@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   // Form
   const [title, setTitle] = useState('')
@@ -64,6 +66,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
     e.preventDefault()
     if (!title.trim() || !startDate) return
     setLoading(true)
+    setFormError(null)
     const { data, error } = await supabase.from('events').insert({
       household_id: householdId,
       title: title.trim(),
@@ -74,7 +77,9 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
       color: myProfile?.color ?? '#6366f1',
     }).select('*, creator:profiles!created_by(display_name, color)').single()
 
-    if (!error && data) {
+    if (error) {
+      setFormError(error.message)
+    } else if (data) {
       setEvents((prev) => [...prev, data as CalendarEvent].sort((a, b) => a.start.localeCompare(b.start)))
       setTitle(''); setStartDate(''); setEndDate(''); setShowCreate(false)
     }
@@ -163,13 +168,13 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
       <Button variant="secondary" onClick={() => setShowCreate(true)}>+ Ajouter un événement</Button>
 
       {/* Create event sheet */}
-      {showCreate && (
+      {showCreate && createPortal(
         <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setShowCreate(false)}>
           <div className="absolute inset-0 bg-black/60" />
-          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 animate-slide-up" onClick={(e) => e.stopPropagation()} onSubmit={createEvent}>
+          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 pb-28 flex flex-col gap-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} onSubmit={createEvent}>
             <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
             <h3 className="text-base font-bold text-[#f0f0f5]">Nouvel événement</h3>
-            <Input label="Titre" placeholder="Soirée raclette 🧀" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <Input label="Titre" placeholder="Soirée raclette" value={title} onChange={(e) => setTitle(e.target.value)} required />
             <div>
               <p className="text-sm font-medium text-[#8888a0] mb-1.5">Type</p>
               <div className="flex flex-wrap gap-2">
@@ -182,9 +187,11 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
               <Input label="Début" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required className="flex-1" />
               <Input label="Fin (optionnel)" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="flex-1" />
             </div>
+            {formError && <p className="text-xs text-red-400">{formError}</p>}
             <Button type="submit" loading={loading} className="w-full">Ajouter</Button>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
