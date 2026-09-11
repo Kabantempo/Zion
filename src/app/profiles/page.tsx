@@ -35,6 +35,7 @@ export default function ProfilesPage() {
   const [anonUserId, setAnonUserId] = useState<string | null>(null)
   const [profiles, setProfiles] = useState<HouseholdProfile[]>([])
   const [householdId, setHouseholdId] = useState<string | null>(null)
+  const [createdProfileId, setCreatedProfileId] = useState<string | null>(null)
 
   const [displayName, setDisplayName] = useState('')
   const [color, setColor] = useState(COLORS[Math.floor(Math.random() * COLORS.length)])
@@ -45,7 +46,7 @@ export default function ProfilesPage() {
 
   useEffect(() => {
     const session = getProfileSession()
-    if (session) { router.replace('/'); return }
+    if (session) { router.replace('/taches'); return }
     init()
   }, [])
 
@@ -63,16 +64,17 @@ export default function ProfilesPage() {
       .from('profiles').select('id, claimed_by').eq('claimed_by', user.id).single()
 
     if (claimedProfile) {
-      const { data: membership } = await supabase
-        .from('household_members').select('household_id').eq('profile_id', claimedProfile.id).single()
-      if (membership) {
-        const { data: pd } = await supabase.from('profiles').select('*').eq('id', claimedProfile.id).single()
-        if (pd) {
-          setProfileSession({ profileId: pd.id, householdId: membership.household_id, displayName: pd.display_name, color: pd.color, avatarUrl: pd.avatar_url })
-          router.replace('/')
-          return
-        }
+      const [{ data: membership }, { data: pd }] = await Promise.all([
+        supabase.from('household_members').select('household_id').eq('profile_id', claimedProfile.id).single(),
+        supabase.from('profiles').select('*').eq('id', claimedProfile.id).single(),
+      ])
+      if (membership && pd) {
+        setProfileSession({ profileId: pd.id, householdId: membership.household_id, displayName: pd.display_name, color: pd.color, avatarUrl: pd.avatar_url })
+        router.replace('/taches')
+        return
       }
+      // Profile exists but no household yet — skip profile creation step
+      if (pd) setCreatedProfileId(pd.id)
     }
 
     // Load (or create) the household and its profiles
@@ -108,7 +110,7 @@ export default function ProfilesPage() {
     setLoading(true)
     await supabase.from('profiles').update({ claimed_by: anonUserId }).eq('id', profile.id)
     setProfileSession({ profileId: profile.id, householdId, displayName: profile.display_name, color: profile.color, avatarUrl: profile.avatar_url })
-    router.replace('/')
+    router.replace('/taches')
   }
 
   async function handleCreateProfile(e: React.FormEvent) {
@@ -117,40 +119,53 @@ export default function ProfilesPage() {
     setLoading(true)
     setError('')
 
-    let avatar_url: string | null = null
-    if (avatarFile) {
-      const ext = avatarFile.name.split('.').pop()
-      const path = `avatars/${anonUserId}.${ext}`
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, avatarFile, { upsert: true })
-      if (!upErr) {
-        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-        avatar_url = urlData.publicUrl
+    let profileId = createdProfileId
+    let profileData: any = null
+
+    if (!profileId) {
+      // Upload avatar if any
+      let avatar_url: string | null = null
+      if (avatarFile) {
+        const ext = avatarFile.name.split('.').pop()
+        const path = `avatars/${anonUserId}.${ext}`
+        const { error: upErr } = await supabase.storage.from('avatars').upload(path, avatarFile, { upsert: true })
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+          avatar_url = urlData.publicUrl
+        }
       }
+
+      const { data: created, error: pErr } = await supabase
+        .from('profiles')
+        .insert({ display_name: displayName.trim(), color, avatar_url, claimed_by: anonUserId })
+        .select().single()
+
+      if (pErr || !created) { setError(pErr?.message ?? 'Erreur'); setLoading(false); return }
+      profileId = created.id
+      profileData = created
+    } else {
+      const { data: existing } = await supabase.from('profiles').select('*').eq('id', profileId).single()
+      profileData = existing
     }
 
-    const { data: profile, error: pErr } = await supabase
-      .from('profiles')
-      .insert({ display_name: displayName.trim(), color, avatar_url, claimed_by: anonUserId })
-      .select().single()
-
-    if (pErr || !profile) { setError(pErr?.message ?? 'Erreur'); setLoading(false); return }
+    if (!profileData) { setError('Erreur profil'); setLoading(false); return }
 
     // Create household if it doesn't exist yet (first user)
     let hId = householdId
     if (!hId) {
       const { data: newHousehold } = await supabase
         .from('households')
-        .insert({ name: 'Zion', invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(), created_by: profile.id })
+        .insert({ name: 'Zion', invite_code: Math.random().toString(36).substring(2, 8).toUpperCase(), created_by: profileId })
         .select().single()
       if (!newHousehold) { setError('Erreur création foyer'); setLoading(false); return }
       hId = newHousehold.id
       await supabase.from('task_types').insert(DEFAULT_TASKS.map((t) => ({ ...t, household_id: hId })))
     }
 
-    await supabase.from('household_members').insert({ household_id: hId, profile_id: profile.id, role: householdId ? 'member' : 'admin' })
+    await supabase.from('household_members').upsert({ household_id: hId, profile_id: profileId, role: householdId ? 'member' : 'admin' })
 
-    setProfileSession({ profileId: profile.id, householdId: hId!, displayName: profile.display_name, color: profile.color, avatarUrl: profile.avatar_url })
-    router.replace('/')
+    setProfileSession({ profileId, householdId: hId!, displayName: profileData.display_name, color: profileData.color, avatarUrl: profileData.avatar_url })
+    router.replace('/taches')
   }
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
