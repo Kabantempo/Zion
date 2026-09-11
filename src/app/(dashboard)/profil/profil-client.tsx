@@ -75,7 +75,7 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
   async function logout() {
     localStorage.removeItem('zion_profile_session')
     try { await supabase.auth.signOut() } catch {}
-    router.push('/profiles')
+    window.location.href = '/profiles'
   }
 
   return (
