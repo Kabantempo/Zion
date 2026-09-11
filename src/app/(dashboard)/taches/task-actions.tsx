@@ -116,7 +116,7 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
       {showAdd && (
         <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setShowAdd(false)}>
           <div className="absolute inset-0 bg-black/60" />
-          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 animate-slide-up" onClick={(e) => e.stopPropagation()} onSubmit={addTaskType}>
+          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 animate-slide-up max-h-[85dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()} onSubmit={addTaskType}>
             <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
             <h3 className="text-base font-bold text-[#f0f0f5]">Nouvelle tâche type</h3>
             <Input label="Libellé" placeholder="Nettoyer le four" value={label} onChange={(e) => setLabel(e.target.value)} required />
