@@ -176,6 +176,19 @@ export default function TachesPage() {
     await supabase.from('task_logs').delete().eq('id', logId)
   }, [])
 
+  const deleteLog = useCallback(async (logId: string, taskTypeId: string, doneBy: string, doneAt: string) => {
+    await supabase.from('task_logs').delete().eq('id', logId)
+    setData((prev: any) => {
+      if (!prev) return prev
+      const recentLogs = prev.recentLogs.filter((l: any) => l.id !== logId)
+      return { ...prev, recentLogs }
+    })
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+    if (doneBy === data?.profileId && new Date(doneAt) >= todayStart) {
+      setDoneTodayIds(prev => { const s = new Set(prev); s.delete(taskTypeId); return s })
+    }
+  }, [data?.profileId])
+
   if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
   const { taskTypes, recentLogs, categories, profileId, householdId } = data
@@ -228,13 +241,18 @@ export default function TachesPage() {
           <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">Historique</h3>
           <div className="flex flex-col gap-2">
             {recentLogs.map((log: any) => (
-              <div key={log.id} className="flex items-center gap-3 px-1 py-1">
+              <div key={log.id} className="flex items-center gap-3 px-1 py-1 group">
                 {log.profile && <Avatar name={log.profile.display_name} color={log.profile.color} avatarUrl={log.profile.avatar_url} size="sm" />}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f5] truncate">{log.task_type?.label}</p>
                   <p className="text-xs text-[#8888a0]">{log.profile?.display_name} · {formatRelative(log.done_at)}</p>
                 </div>
                 <span className="text-xs font-bold text-green-400">+{log.points_awarded}</span>
+                <button
+                  onClick={() => deleteLog(log.id, log.task_type_id, log.done_by, log.done_at)}
+                  className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                  title="Annuler cette tâche"
+                >✕</button>
               </div>
             ))}
           </div>
