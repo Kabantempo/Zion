@@ -64,7 +64,7 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [householdId])
-  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const [selectedDay, setSelectedDay] = useState<number | null>(now.getDate())
   const [showCreate, setShowCreate] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
@@ -193,10 +193,11 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
     const md = `${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     return filteredEvents.filter((e) => {
       if ((e.type as string) === 'birthday') {
-        // Recurring: match same month-day every year
         return e.start.slice(5, 10) === md
       }
-      return e.start.startsWith(d) || (e.start <= d + 'T23:59:59' && e.end >= d)
+      const eStart = e.start.slice(0, 10)
+      const eEnd = (e.end || e.start).slice(0, 10)
+      return eStart <= d && eEnd >= d
     })
   }
 
