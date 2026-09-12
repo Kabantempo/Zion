@@ -125,7 +125,7 @@ export default function TachesPage() {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
-    const [{ data: taskTypes }, { data: recentLogs }, { data: todayLogs }, { data: memberRow }] = await Promise.all([
+    const [{ data: taskTypes }, { data: recentLogs }, { data: todayLogs }] = await Promise.all([
       supabase.from('task_types').select('*').eq('household_id', householdId).order('category').order('label'),
       supabase.from('task_logs')
         .select('*, task_type:task_types(label, category, points), profile:profiles(display_name, color, avatar_url)')
@@ -137,10 +137,8 @@ export default function TachesPage() {
         .eq('household_id', householdId)
         .eq('done_by', profileId)
         .gte('done_at', todayStart.toISOString()),
-      supabase.from('household_members').select('role').eq('household_id', householdId).eq('profile_id', profileId).single(),
     ])
 
-    const isAdmin = (memberRow as any)?.role === 'admin'
     const categories: Record<string, TaskType[]> = {}
     for (const t of (taskTypes ?? []) as TaskType[]) {
       if (!categories[t.category]) categories[t.category] = []
@@ -148,7 +146,7 @@ export default function TachesPage() {
     }
 
     setDoneTodayIds(new Set((todayLogs ?? []).map((l: any) => l.task_type_id)))
-    setData({ taskTypes: taskTypes ?? [], recentLogs: recentLogs ?? [], categories, profileId, householdId, isAdmin })
+    setData({ taskTypes: taskTypes ?? [], recentLogs: recentLogs ?? [], categories, profileId, householdId })
     setLoading(false)
   }
 
@@ -196,7 +194,7 @@ export default function TachesPage() {
 
   if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
-  const { taskTypes, recentLogs, categories, profileId, householdId, isAdmin } = data
+  const { taskTypes, recentLogs, categories, profileId, householdId } = data
 
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
@@ -253,13 +251,11 @@ export default function TachesPage() {
                   <p className="text-xs text-[#8888a0]">{log.profile?.display_name} · {formatRelative(log.done_at)}</p>
                 </div>
                 <span className="text-xs font-bold text-green-400">+{log.points_awarded}</span>
-                {(log.done_by === profileId || isAdmin) && (
-                  <button
-                    onClick={() => deleteLog(log.id, log.task_type_id, log.done_by, log.done_at)}
-                    className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 active:text-red-400 hover:bg-red-500/10 active:bg-red-500/10 transition-all"
-                    title={isAdmin && log.done_by !== profileId ? 'Supprimer (admin)' : 'Annuler cette tâche'}
-                  >✕</button>
-                )}
+                <button
+                  onClick={() => deleteLog(log.id, log.task_type_id, log.done_by, log.done_at)}
+                  className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-[#7070a0] hover:text-red-400 active:text-red-400 hover:bg-red-500/10 active:bg-red-500/10 transition-all"
+                  title="Supprimer"
+                >✕</button>
               </div>
             ))}
           </div>
