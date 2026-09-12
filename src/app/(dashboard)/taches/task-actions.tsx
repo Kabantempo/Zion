@@ -27,6 +27,7 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
   const supabase = createClient()
   const [showLog, setShowLog] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  const [showManage, setShowManage] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
   const [celebration, setCelebration] = useState<{ label: string; points: number } | null>(null)
 
@@ -51,6 +52,13 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
       setTimeout(() => { setCelebration(null); router.refresh() }, 2000)
     }
     setLoading(null)
+  }
+
+  async function deleteTaskType(taskId: string) {
+    setLoading(taskId)
+    await supabase.from('task_types').delete().eq('id', taskId)
+    setLoading(null)
+    router.refresh()
   }
 
   async function addTaskType(e: React.FormEvent) {
@@ -86,6 +94,7 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
       <div className="flex gap-2">
         <Button className="flex-1" onClick={() => setShowLog(true)}>J'ai fait une tâche</Button>
         <Button variant="secondary" onClick={() => setShowAdd(true)}>+ Tâche</Button>
+        <Button variant="secondary" onClick={() => setShowManage(true)}>⚙️</Button>
       </div>
 
       {/* Log task sheet */}
@@ -142,6 +151,37 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
             </div>
             <Button type="submit" loading={loading === 'add'} className="w-full">Ajouter</Button>
           </form>
+        </div>,
+        document.body
+      )}
+      {/* Manage task types sheet */}
+      {showManage && createPortal(
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setShowManage(false)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 pb-28 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto mb-4" />
+            <h3 className="text-base font-bold text-[#f0f0f5] mb-4">Gérer les tâches</h3>
+            {Object.entries(
+              taskTypes.reduce((acc, t) => { if (!acc[t.category]) acc[t.category] = []; acc[t.category].push(t); return acc }, {} as Record<string, TaskType[]>)
+            ).map(([cat, tasks]) => (
+              <div key={cat} className="mb-4">
+                <p className="text-xs font-semibold text-[#555570] uppercase tracking-wider mb-2">{cat}</p>
+                <div className="flex flex-col gap-1">
+                  {tasks.map((task) => (
+                    <div key={task.id} className="flex items-center justify-between w-full px-4 py-3 rounded-xl bg-[#22222e]">
+                      <span className="text-sm text-[#f0f0f5] flex-1">{task.label}</span>
+                      <span className="text-xs font-bold text-green-400 mr-3">+{task.points}</span>
+                      <button
+                        onClick={() => deleteTaskType(task.id)}
+                        disabled={loading === task.id}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[#7070a0] hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      >{loading === task.id ? '…' : '✕'}</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>,
         document.body
       )}
