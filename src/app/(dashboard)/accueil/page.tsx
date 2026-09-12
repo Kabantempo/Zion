@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
 import { Card } from '@/components/ui/card'
@@ -192,6 +193,10 @@ export default function AccueilPage() {
           </div>
         </Card>
       )}
+
+      <div className="flex justify-end">
+        <Link href="/historique" className="text-xs text-[#7070a0] hover:text-red-400 transition-colors">📊 Historique →</Link>
+      </div>
 
       {recentActivity?.length === 0 && (
         <div className="text-center py-10 text-[#7070a0]">
