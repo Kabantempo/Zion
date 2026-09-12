@@ -21,6 +21,7 @@ const ACHIEVEMENTS = [
   { key: 'points_500', icon: '💰', label: 'Riche en mérites', description: 'Cumuler 500 points' },
   { key: 'points_2000', icon: '💎', label: 'Diamant', description: 'Cumuler 2000 points' },
   { key: 'all_categories', icon: '🎨', label: 'Polyvalent', description: 'Tâches dans 5 catégories' },
+  { key: 'dead_god', icon: '💀', label: 'Dead God', description: 'Faire toutes les tâches au moins une fois' },
 ]
 
 interface MemberProfile {
@@ -36,10 +37,12 @@ interface Stats {
   saviorCount: number
   streak: number
   categoriesDone: Set<string>
+  uniqueTasksDone: number
+  totalTaskTypes: number
 }
 
 function computeUnlocked(stats: Stats) {
-  const { taskCount, totalPoints, saviorCount, streak, categoriesDone } = stats
+  const { taskCount, totalPoints, saviorCount, streak, categoriesDone, uniqueTasksDone, totalTaskTypes } = stats
   const checks: Record<string, boolean> = {
     first_task: taskCount >= 1,
     ten_tasks: taskCount >= 10,
@@ -53,12 +56,13 @@ function computeUnlocked(stats: Stats) {
     points_500: totalPoints >= 500,
     points_2000: totalPoints >= 2000,
     all_categories: categoriesDone.size >= 5,
+    dead_god: totalTaskTypes > 0 && uniqueTasksDone >= totalTaskTypes,
   }
   return checks
 }
 
 function getProgress(key: string, stats: Stats): number {
-  const { taskCount, totalPoints, streak, categoriesDone } = stats
+  const { taskCount, totalPoints, streak, categoriesDone, saviorCount, uniqueTasksDone, totalTaskTypes } = stats
   switch (key) {
     case 'first_task': return Math.min(100, taskCount * 100)
     case 'ten_tasks': return Math.min(100, (taskCount / 10) * 100)
@@ -71,6 +75,7 @@ function getProgress(key: string, stats: Stats): number {
     case 'points_2000': return Math.min(100, (totalPoints / 2000) * 100)
     case 'all_categories': return Math.min(100, (categoriesDone.size / 5) * 100)
     case 'cyberpsycho': return Math.min(100, (saviorCount / 10) * 100)
+    case 'dead_god': return totalTaskTypes > 0 ? Math.min(100, (uniqueTasksDone / totalTaskTypes) * 100) : 0
     default: return 0
   }
 }
@@ -107,15 +112,18 @@ export default function SuccesPage() {
 
     const map: Record<string, Stats> = {}
     await Promise.all(profiles.map(async (m) => {
-      const [{ data: allTimeLogs }, { data: pointsData }, { data: ticketsDone }] = await Promise.all([
-        supabase.from('task_logs').select('done_at, task_type:task_types(category)').eq('done_by', m.profileId).eq('household_id', householdId).order('done_at'),
+      const [{ data: allTimeLogs }, { data: pointsData }, { data: ticketsDone }, { data: allTaskTypes }] = await Promise.all([
+        supabase.from('task_logs').select('done_at, task_type_id, task_type:task_types(category)').eq('done_by', m.profileId).eq('household_id', householdId).order('done_at'),
         supabase.from('task_logs').select('points_awarded').eq('done_by', m.profileId).eq('household_id', householdId),
         supabase.from('tickets').select('id').eq('household_id', householdId).eq('completed_by', m.profileId),
+        supabase.from('task_types').select('id').eq('household_id', householdId),
       ])
 
       const taskCount = allTimeLogs?.length ?? 0
       const totalPoints = (pointsData ?? []).reduce((s: number, l: any) => s + l.points_awarded, 0)
       const saviorCount = ticketsDone?.length ?? 0
+      const totalTaskTypes = allTaskTypes?.length ?? 0
+      const uniqueTasksDone = new Set((allTimeLogs ?? []).map((l: any) => l.task_type_id).filter(Boolean)).size
 
       const days = new Set((allTimeLogs ?? []).map((l: any) => new Date(l.done_at).toDateString()))
       let streak = days.has(new Date().toDateString()) ? 1 : 0
@@ -127,7 +135,7 @@ export default function SuccesPage() {
         return tt?.category
       }).filter(Boolean))
 
-      map[m.profileId] = { taskCount, totalPoints, saviorCount, streak, categoriesDone }
+      map[m.profileId] = { taskCount, totalPoints, saviorCount, streak, categoriesDone, uniqueTasksDone, totalTaskTypes }
     }))
 
     setStatsMap(map)
