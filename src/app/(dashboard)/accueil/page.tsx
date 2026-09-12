@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
 import { Card } from '@/components/ui/card'
@@ -21,6 +21,7 @@ function StatBlock({ value, label, color }: { value: string; label: string; colo
 
 export default function AccueilPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const supabase = createClient()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -29,7 +30,7 @@ export default function AccueilPage() {
     const session = getProfileSession()
     if (!session) { router.replace('/profiles'); return }
     load(session.profileId, session.householdId)
-  }, [])
+  }, [pathname])
 
   async function load(profileId: string, householdId: string) {
     const since30 = new Date(Date.now() - 30 * 86400000).toISOString()

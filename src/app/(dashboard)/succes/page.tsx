@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
@@ -82,12 +83,14 @@ function getProgress(key: string, stats: Stats): number {
 
 export default function SuccesPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const supabase = createClient()
   const [members, setMembers] = useState<MemberProfile[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [statsMap, setStatsMap] = useState<Record<string, Stats>>({})
   const [loading, setLoading] = useState(true)
   const [myProfileId, setMyProfileId] = useState<string | null>(null)
+  const [newAchievement, setNewAchievement] = useState<{ icon: string; label: string } | null>(null)
 
   useEffect(() => {
     const session = getProfileSession()
@@ -95,7 +98,7 @@ export default function SuccesPage() {
     setMyProfileId(session.profileId)
     setSelectedId(session.profileId)
     loadAll(session.profileId, session.householdId)
-  }, [])
+  }, [pathname])
 
   async function loadAll(profileId: string, householdId: string) {
     const { data: membersData } = await supabase
@@ -140,6 +143,26 @@ export default function SuccesPage() {
 
     setStatsMap(map)
     setLoading(false)
+
+    // Detect newly unlocked achievements for current user
+    const myStats = map[profileId]
+    if (myStats) {
+      const unlocked = computeUnlocked(myStats)
+      const storageKey = `zion_achievements_${profileId}`
+      let seen: string[] = []
+      try { seen = JSON.parse(localStorage.getItem(storageKey) ?? '[]') } catch {}
+      const newOnes = ACHIEVEMENTS.filter((a) => unlocked[a.key] && !seen.includes(a.key))
+      if (newOnes.length > 0) {
+        const first = newOnes[0]
+        setNewAchievement({ icon: first.icon, label: first.label })
+        const allUnlocked = ACHIEVEMENTS.filter((a) => unlocked[a.key]).map((a) => a.key)
+        try { localStorage.setItem(storageKey, JSON.stringify(allUnlocked)) } catch {}
+        setTimeout(() => setNewAchievement(null), 4000)
+      } else {
+        const allUnlocked = ACHIEVEMENTS.filter((a) => unlocked[a.key]).map((a) => a.key)
+        try { localStorage.setItem(storageKey, JSON.stringify(allUnlocked)) } catch {}
+      }
+    }
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -150,6 +173,19 @@ export default function SuccesPage() {
 
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
+      {newAchievement && createPortal(
+        <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
+          <div className="bg-[#1a1a24] border border-yellow-500/40 rounded-3xl p-8 text-center shadow-2xl animate-pop-in mx-6">
+            <div className="text-6xl mb-3 animate-bounce">{newAchievement.icon}</div>
+            <p className="text-xs font-semibold text-yellow-400 uppercase tracking-widest mb-1">Succès débloqué !</p>
+            <p className="text-2xl font-black text-[#f0f0f5]">{newAchievement.label}</p>
+            <div className="mt-4 flex justify-center gap-1">
+              {['✨','🎉','✨'].map((e, i) => <span key={i} className="text-xl animate-bounce" style={{ animationDelay: `${i * 0.15}s` }}>{e}</span>)}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
       <div className="flex justify-end">
         <Link href="/classement" className="text-xs text-[#7070a0] hover:text-red-400 transition-colors flex items-center gap-1">
           🏆 Classement →
