@@ -56,9 +56,9 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
 
   async function deleteTaskType(taskId: string) {
     setLoading(taskId)
-    await fetch(`/api/task-types/${taskId}`, { method: 'DELETE' })
+    const res = await fetch(`/api/task-types/${taskId}`, { method: 'DELETE' })
     setLoading(null)
-    router.refresh()
+    if (res.ok) { setShowManage(false); router.refresh() }
   }
 
   async function addTaskType(e: React.FormEvent) {

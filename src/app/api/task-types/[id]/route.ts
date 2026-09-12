@@ -9,6 +9,9 @@ const adminSupabase = createServerClient(
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
+  // Delete related logs first (foreign key constraint)
+  await adminSupabase.from('task_logs').delete().eq('task_type_id', id)
+
   const { error } = await adminSupabase.from('task_types').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
