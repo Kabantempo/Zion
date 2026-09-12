@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Home, CheckSquare, Ticket, Calendar, Medal } from 'lucide-react'
+import { Home, CheckSquare, Ticket, Calendar, Medal, Trophy } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/taches', icon: CheckSquare, label: 'Tâches' },
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/accueil', icon: Home, label: 'Accueil', isHome: true },
   { href: '/calendrier', icon: Calendar, label: 'Agenda' },
   { href: '/succes', icon: Medal, label: 'Succès' },
+  { href: '/classement', icon: Trophy, label: 'Score' },
 ]
 
 export function BottomNav() {
@@ -28,15 +29,15 @@ export function BottomNav() {
                 key={href}
                 href={href}
                 className={cn(
-                  'flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all duration-200 relative',
+                  'flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-xl transition-all duration-200 relative',
                   active ? 'text-red-400' : 'text-[#44445a] hover:text-[#7070a0]'
                 )}
               >
                 {active && (
                   <span className="absolute inset-0 bg-red-500/8 rounded-xl" />
                 )}
-                <Icon size={21} strokeWidth={active ? 2.5 : 1.8} className="relative" />
-                <span className={cn('text-[10px] font-semibold tracking-wide relative', active ? 'text-red-400' : '')}>
+                <Icon size={19} strokeWidth={active ? 2.5 : 1.8} className="relative" />
+                <span className={cn('text-[9px] font-semibold tracking-wide relative', active ? 'text-red-400' : '')}>
                   {label}
                 </span>
               </Link>
