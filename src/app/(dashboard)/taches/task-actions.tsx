@@ -56,7 +56,7 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
 
   async function deleteTaskType(taskId: string) {
     setLoading(taskId)
-    await supabase.from('task_types').delete().eq('id', taskId)
+    await fetch(`/api/task-types/${taskId}`, { method: 'DELETE' })
     setLoading(null)
     router.refresh()
   }
