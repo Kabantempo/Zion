@@ -167,9 +167,15 @@ export default function SuccesPage() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
-  const stats = selectedId ? statsMap[selectedId] : null
-  const unlocked = stats ? ACHIEVEMENTS.filter((a) => computeUnlocked(stats)[a.key]) : []
-  const locked = stats ? ACHIEVEMENTS.filter((a) => !computeUnlocked(stats)[a.key]) : []
+  const myStats = myProfileId ? statsMap[myProfileId] : null
+  const myUnlockedCount = myStats ? ACHIEVEMENTS.filter((a) => computeUnlocked(myStats)[a.key]).length : 0
+
+  const unlockedAchievements = ACHIEVEMENTS.filter((a) =>
+    members.some((m) => statsMap[m.profileId] && computeUnlocked(statsMap[m.profileId])[a.key])
+  )
+  const lockedAchievements = ACHIEVEMENTS.filter((a) =>
+    !members.some((m) => statsMap[m.profileId] && computeUnlocked(statsMap[m.profileId])[a.key])
+  )
 
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
@@ -186,87 +192,71 @@ export default function SuccesPage() {
         </div>,
         document.body
       )}
-      <div className="flex justify-end">
+
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-2xl font-black text-[#f0f0f5]">{myUnlockedCount}<span className="text-[#8888a0] text-base font-normal">/{ACHIEVEMENTS.length}</span></p>
+          <p className="text-xs text-[#7070a0]">mes succès</p>
+        </div>
         <Link href="/classement" className="text-xs text-[#7070a0] hover:text-red-400 transition-colors flex items-center gap-1">
           🏆 Classement →
         </Link>
       </div>
 
-      {/* Member picker */}
-      {members.length > 1 && (
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          {members.map((m) => (
-            <button
-              key={m.profileId}
-              onClick={() => setSelectedId(m.profileId)}
-              className={`flex flex-col items-center gap-1.5 flex-shrink-0 transition-all ${selectedId === m.profileId ? 'opacity-100' : 'opacity-40'}`}
-            >
-              <div className={`rounded-full transition-all ${selectedId === m.profileId ? 'ring-2 ring-red-500 ring-offset-2 ring-offset-[#0f0f13]' : ''}`}>
-                <Avatar name={m.displayName} color={m.color} avatarUrl={m.avatarUrl} size="md" />
-              </div>
-              <span className="text-xs text-[#8888a0]">{m.profileId === myProfileId ? 'Moi' : m.displayName}</span>
-            </button>
-          ))}
+      {unlockedAchievements.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">Débloqués ✨</h3>
+          <div className="flex flex-col gap-2">
+            {unlockedAchievements.map((a) => (
+              <Card key={a.key}>
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">{a.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-[#f0f0f5]">{a.label}</p>
+                    <p className="text-xs text-[#8888a0]">{a.description}</p>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {members.map((m) => {
+                      const has = statsMap[m.profileId] && computeUnlocked(statsMap[m.profileId])[a.key]
+                      return (
+                        <div key={m.profileId} className={`transition-all ${has ? 'opacity-100' : 'opacity-20 grayscale'}`} title={m.displayName}>
+                          <Avatar name={m.displayName} color={m.color} avatarUrl={m.avatarUrl} size="sm" />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
-      {stats && (
-        <>
-          <Card>
-            <div className="flex items-center gap-4">
-              <div className="text-4xl">🏅</div>
-              <div>
-                <p className="text-2xl font-black text-[#f0f0f5]">{unlocked.length}<span className="text-[#8888a0] text-lg font-normal">/{ACHIEVEMENTS.length}</span></p>
-                <p className="text-sm text-[#8888a0]">succès débloqués</p>
-              </div>
-            </div>
-            <div className="mt-3 h-2 bg-[#2e2e3e] rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all" style={{ width: `${(unlocked.length / ACHIEVEMENTS.length) * 100}%` }} />
-            </div>
-          </Card>
-
-          {unlocked.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">Débloqués ✨</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {unlocked.map((a) => (
-                  <Card key={a.key} className="text-center">
-                    <div className="text-4xl mb-2">{a.icon}</div>
-                    <p className="text-sm font-bold text-[#f0f0f5]">{a.label}</p>
-                    <p className="text-xs text-[#8888a0] mt-0.5">{a.description}</p>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {locked.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">À débloquer</h3>
-              <div className="flex flex-col gap-2">
-                {locked.map((a) => {
-                  const progress = getProgress(a.key, stats)
-                  return (
-                    <Card key={a.key} className="opacity-60">
-                      <div className="flex items-center gap-3">
-                        <div className="text-3xl grayscale">{a.icon}</div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-[#f0f0f5]">{a.label}</p>
-                          <p className="text-xs text-[#8888a0]">{a.description}</p>
-                          {progress > 0 && (
-                            <div className="mt-1.5 h-1.5 bg-[#2e2e3e] rounded-full overflow-hidden">
-                              <div className="h-full bg-red-500 rounded-full" style={{ width: `${progress}%` }} />
-                            </div>
-                          )}
+      {lockedAchievements.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">À débloquer</h3>
+          <div className="flex flex-col gap-2">
+            {lockedAchievements.map((a) => {
+              const progress = myStats ? getProgress(a.key, myStats) : 0
+              return (
+                <Card key={a.key} className="opacity-50">
+                  <div className="flex items-center gap-3">
+                    <div className="text-3xl grayscale">{a.icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#f0f0f5]">{a.label}</p>
+                      <p className="text-xs text-[#8888a0]">{a.description}</p>
+                      {progress > 0 && (
+                        <div className="mt-1.5 h-1.5 bg-[#2e2e3e] rounded-full overflow-hidden">
+                          <div className="h-full bg-red-500 rounded-full" style={{ width: `${progress}%` }} />
                         </div>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
       )}
     </div>
   )
