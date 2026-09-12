@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -65,6 +65,9 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
     return () => { supabase.removeChannel(channel) }
   }, [householdId])
   const [selectedDay, setSelectedDay] = useState<number | null>(now.getDate())
+  const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null)
+  const swipeTouchStart = useRef<{ x: number; y: number } | null>(null)
+  const swipeDx = useRef(0)
   const [showCreate, setShowCreate] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
@@ -182,10 +185,34 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
   }
 
   function prevMonth() {
+    setSlideDir('right')
+    setTimeout(() => { setSlideDir(null) }, 300)
+    setSelectedDay(null)
     if (month === 0) { setYear(y => y - 1); setMonth(11) } else setMonth(m => m - 1)
   }
   function nextMonth() {
+    setSlideDir('left')
+    setTimeout(() => { setSlideDir(null) }, 300)
+    setSelectedDay(null)
     if (month === 11) { setYear(y => y + 1); setMonth(0) } else setMonth(m => m + 1)
+  }
+
+  function onSwipeTouchStart(e: React.TouchEvent) {
+    swipeTouchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    swipeDx.current = 0
+  }
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    if (!swipeTouchStart.current) return
+    const dx = e.touches[0].clientX - swipeTouchStart.current.x
+    const dy = e.touches[0].clientY - swipeTouchStart.current.y
+    if (Math.abs(dx) > Math.abs(dy)) swipeDx.current = dx
+  }
+  function onSwipeTouchEnd() {
+    if (Math.abs(swipeDx.current) > 50) {
+      if (swipeDx.current < 0) nextMonth(); else prevMonth()
+    }
+    swipeTouchStart.current = null
+    swipeDx.current = 0
   }
 
   function eventsForDay(day: number): CalendarEvent[] {
@@ -271,6 +298,30 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
 
   const selectedDayEvents = selectedDay ? eventsForDay(selectedDay) : []
 
+  function miniMonthDays(y: number, m: number) {
+    const firstDow = (new Date(y, m, 1).getDay() + 6) % 7
+    const daysInM = new Date(y, m + 1, 0).getDate()
+    const cells: (number | null)[] = Array(firstDow).fill(null)
+    for (let d = 1; d <= daysInM; d++) cells.push(d)
+    while (cells.length % 7 !== 0) cells.push(null)
+    return cells
+  }
+
+  function miniEventsForDay(y: number, m: number, day: number): string[] {
+    const d = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const md = `${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    return events.filter(e => {
+      if ((e.type as string) === 'birthday') return e.start.slice(5, 10) === md
+      return e.start.slice(0, 10) <= d && (e.end || e.start).slice(0, 10) >= d
+    }).map(e => e.color)
+  }
+
+  const miniMonths = [1, 2].map(offset => {
+    let m2 = month + offset, y2 = year
+    if (m2 > 11) { m2 -= 12; y2++ }
+    return { y: y2, m: m2 }
+  })
+
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
       {/* Month nav */}
@@ -305,6 +356,18 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
           </button>
         ))}
       </div>
+
+      {/* Swipeable calendar area */}
+      <div
+        onTouchStart={onSwipeTouchStart}
+        onTouchMove={onSwipeTouchMove}
+        onTouchEnd={onSwipeTouchEnd}
+        className="overflow-hidden"
+      >
+        <div
+          className="transition-transform duration-300 ease-out"
+          style={{ transform: slideDir === 'left' ? 'translateX(-8px)' : slideDir === 'right' ? 'translateX(8px)' : 'translateX(0)', opacity: slideDir ? 0.7 : 1, transition: 'transform 0.25s ease-out, opacity 0.25s' }}
+        >
 
       {/* Day names */}
       <div className="grid grid-cols-7">
@@ -368,6 +431,9 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
         })}
       </div>
 
+        </div>{/* end transition div */}
+      </div>{/* end swipeable area */}
+
       {/* Selected day events */}
       {selectedDay && (
         <div>
@@ -400,6 +466,35 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
           )}
         </div>
       )}
+
+      {/* Mini months */}
+      <div className="grid grid-cols-2 gap-3">
+        {miniMonths.map(({ y, m }) => {
+          const cells = miniMonthDays(y, m)
+          return (
+            <button
+              key={`${y}-${m}`}
+              onClick={() => { setYear(y); setMonth(m); setSelectedDay(null) }}
+              className="bg-[#13131a] border border-[#252535] rounded-2xl p-3 text-left active:scale-[0.98] transition-all"
+            >
+              <p className="text-xs font-bold text-[#8888a0] mb-2">{MONTH_NAMES[m]} {y !== year ? y : ''}</p>
+              <div className="grid grid-cols-7 gap-0">
+                {cells.map((d, i) => {
+                  if (!d) return <div key={`e-${i}`} />
+                  const colors = miniEventsForDay(y, m, d)
+                  const isToday2 = d === now.getDate() && m === now.getMonth() && y === now.getFullYear()
+                  return (
+                    <div key={d} className="flex flex-col items-center py-0.5">
+                      <span className={`text-[9px] leading-4 w-4 text-center rounded-full ${isToday2 ? 'bg-red-500 text-white font-bold' : 'text-[#5050707]'}`}>{d}</span>
+                      {colors.length > 0 && <div className="w-1 h-1 rounded-full mt-0.5" style={{ backgroundColor: colors[0] }} />}
+                    </div>
+                  )
+                })}
+              </div>
+            </button>
+          )
+        })}
+      </div>
 
       {/* Create event sheet */}
       {showCreate && createPortal(
