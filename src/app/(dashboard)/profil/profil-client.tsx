@@ -186,7 +186,7 @@ function NotificationToggle({ profileId, householdId }: { profileId: string; hou
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       if (sub) await sub.unsubscribe()
-      await fetch('/api/push/subscribe', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profileId }) })
+      await fetch('/api/push/subscribe', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profileId, householdId }) })
       setStatus('off')
     } finally {
       setBusy(false)

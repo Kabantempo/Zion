@@ -11,17 +11,19 @@ export async function POST(req: NextRequest) {
   if (!subscription || !profileId || !householdId) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
-  const { error } = await adminSupabase.from('push_subscriptions').upsert({
-    profile_id: profileId,
-    household_id: householdId,
-    subscription,
-  }, { onConflict: 'profile_id' })
+  const payload = JSON.stringify({ subscription, profileId, householdId })
+  const blob = new Blob([payload], { type: 'application/json' })
+  const { error } = await adminSupabase.storage.from('push').upload(
+    `${householdId}/${profileId}.json`,
+    blob,
+    { upsert: true, contentType: 'application/json' }
+  )
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(req: NextRequest) {
-  const { profileId } = await req.json()
-  await adminSupabase.from('push_subscriptions').delete().eq('profile_id', profileId)
+  const { profileId, householdId } = await req.json()
+  await adminSupabase.storage.from('push').remove([`${householdId}/${profileId}.json`])
   return NextResponse.json({ ok: true })
 }

@@ -17,24 +17,30 @@ export async function POST(req: NextRequest) {
   const { householdId, excludeProfileId, title, body, url } = await req.json()
   if (!householdId || !title) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
-  const { data: subs } = await adminSupabase
-    .from('push_subscriptions')
-    .select('subscription, profile_id')
-    .eq('household_id', householdId)
-    .neq('profile_id', excludeProfileId ?? '')
-
-  if (!subs?.length) return NextResponse.json({ ok: true, sent: 0 })
+  // List all subscription files for this household
+  const { data: files, error: listErr } = await adminSupabase.storage.from('push').list(householdId)
+  if (listErr || !files?.length) return NextResponse.json({ ok: true, sent: 0 })
 
   const payload = JSON.stringify({ title, body: body ?? '', url: url ?? '/accueil' })
   let sent = 0
 
-  for (const sub of subs) {
+  for (const file of files) {
+    const profileId = file.name.replace('.json', '')
+    if (profileId === excludeProfileId) continue
+
+    // Download subscription data
+    const { data: blob } = await adminSupabase.storage.from('push').download(`${householdId}/${file.name}`)
+    if (!blob) continue
+    const text = await blob.text()
+    let subData: any
+    try { subData = JSON.parse(text) } catch { continue }
+
     try {
-      await webPush.sendNotification(sub.subscription, payload)
+      await webPush.sendNotification(subData.subscription, payload)
       sent++
     } catch (err: any) {
       if (err.statusCode === 410 || err.statusCode === 404) {
-        await adminSupabase.from('push_subscriptions').delete().eq('profile_id', sub.profile_id)
+        await adminSupabase.storage.from('push').remove([`${householdId}/${file.name}`])
       }
     }
   }
