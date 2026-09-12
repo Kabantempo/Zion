@@ -110,10 +110,18 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
             </div>
             <div className="flex flex-col gap-2">
               {col.map((ticket) => (
-                <Card key={ticket.id}>
+                <Card key={ticket.id} className="group">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <p className="text-sm font-medium text-[#f0f0f5] flex-1">{ticket.title}</p>
                     <Badge variant={STATUS_BADGE[ticket.status]}>{STATUS_LABELS[ticket.status]}</Badge>
+                    {confirmDelete === ticket.id ? (
+                      <div className="flex gap-1">
+                        <button onClick={() => deleteTicket(ticket.id)} className="text-xs text-red-400 font-semibold px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20">Oui</button>
+                        <button onClick={() => setConfirmDelete(null)} className="text-xs text-[#7070a0] px-2 py-1 rounded-lg hover:bg-[#2e2e3e]">Non</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmDelete(ticket.id)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">✕</button>
+                    )}
                   </div>
                   {ticket.assignee && (
                     <div className="flex items-center gap-2 mb-2">
@@ -151,16 +159,6 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                       }}>
                         Prendre
                       </Button>
-                    )}
-                    {confirmDelete === ticket.id ? (
-                      <div className="flex gap-1 ml-auto">
-                        <button onClick={() => deleteTicket(ticket.id)} className="text-xs text-red-400 font-semibold px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20">Oui, supprimer</button>
-                        <button onClick={() => setConfirmDelete(null)} className="text-xs text-[#7070a0] px-2 py-1 rounded-lg hover:bg-[#2e2e3e]">Annuler</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setConfirmDelete(ticket.id)} className="ml-auto text-[#555570] hover:text-red-400 transition-colors p-1">
-                        🗑
-                      </button>
                     )}
                   </div>
                 </Card>
