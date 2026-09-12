@@ -21,20 +21,26 @@ export default function CalendrierPage() {
 
   async function load(profileId: string, householdId: string) {
     const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 3, 0).toISOString()
 
-    const [{ data: events }, { data: members }] = await Promise.all([
+    const [{ data: regularEvents }, { data: birthdays }, { data: members }] = await Promise.all([
       supabase.from('events')
         .select('*, creator:profiles!created_by(display_name, color)')
         .eq('household_id', householdId)
+        .neq('type', 'birthday')
         .gte('start', startOfMonth)
         .lte('start', endOfMonth)
         .order('start'),
+      supabase.from('events')
+        .select('*, creator:profiles!created_by(display_name, color)')
+        .eq('household_id', householdId)
+        .eq('type', 'birthday'),
       supabase.from('household_members')
         .select('profile_id, profile:profiles(id, display_name, color)')
         .eq('household_id', householdId),
     ])
+    const events = [...(regularEvents ?? []), ...(birthdays ?? [])]
 
     const profiles = (members ?? []).map((m: any) => Array.isArray(m.profile) ? m.profile[0] : m.profile).filter(Boolean) as Profile[]
     setData({ events: events ?? [], profiles, householdId, profileId })

@@ -164,6 +164,8 @@ export default function TachesPage() {
       if (celebrationTimer.current) clearTimeout(celebrationTimer.current)
       setCelebration({ label: task.label, points: task.points, logId: inserted.id, taskId: task.id })
       celebrationTimer.current = setTimeout(() => { setCelebration(null); router.refresh() }, 3000)
+      // Notify other household members
+      fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId: data.householdId, excludeProfileId: data.profileId, title: '✅ Tâche complétée', body: `+${task.points} pts · ${task.label}`, url: '/accueil' }) }).catch(() => {})
     } else {
       setDoneTodayIds(prev => { const s = new Set(prev); s.delete(task.id); return s })
     }

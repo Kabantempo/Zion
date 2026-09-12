@@ -9,7 +9,7 @@ import { LeaderboardRankings, type LeaderboardRankingItem } from '@/components/u
 import { getLevel, getLevelName } from '@/lib/utils'
 import type { Profile } from '@/types'
 
-type Period = 'week' | 'month' | 'all'
+type Period = 'week' | 'month' | 'all' | 'history'
 
 export default function ClassementPage() {
   return (
@@ -19,19 +19,155 @@ export default function ClassementPage() {
   )
 }
 
+function EvolutionChart({ logs, members }: { logs: any[]; members: any[] }) {
+  const W = 340, H = 140, PAD = { top: 10, right: 10, bottom: 24, left: 28 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+
+  // Build daily cumulative points per profile over last 30 days
+  const now = new Date()
+  const days: string[] = []
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86400000)
+    days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+  }
+
+  const dailyByProfile: Record<string, number[]> = {}
+  for (const m of members) {
+    const pid = m.profile_id || m.userId
+    dailyByProfile[pid] = Array(30).fill(0)
+  }
+  for (const log of logs) {
+    const logDay = log.done_at?.slice(0, 10)
+    const idx = days.indexOf(logDay)
+    if (idx !== -1 && dailyByProfile[log.done_by] !== undefined) {
+      dailyByProfile[log.done_by][idx] += log.points_awarded
+    }
+  }
+
+  // Cumulative
+  const cumulative: Record<string, number[]> = {}
+  for (const [pid, daily] of Object.entries(dailyByProfile)) {
+    cumulative[pid] = []
+    let sum = 0
+    for (const v of daily) { sum += v; cumulative[pid].push(sum) }
+  }
+
+  const maxVal = Math.max(1, ...Object.values(cumulative).flatMap(arr => arr))
+
+  function toX(i: number) { return PAD.left + (i / 29) * innerW }
+  function toY(v: number) { return PAD.top + innerH - (v / maxVal) * innerH }
+
+  function polyline(pts: number[]) {
+    return pts.map((v, i) => `${toX(i)},${toY(v)}`).join(' ')
+  }
+
+  // Y-axis ticks
+  const yTicks = [0, Math.round(maxVal / 2), maxVal]
+  // X-axis ticks: every 7 days
+  const xTicks = [0, 7, 14, 21, 29]
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Évolution ce mois</p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 160 }}>
+        {/* Grid lines */}
+        {yTicks.map(v => (
+          <line key={v} x1={PAD.left} y1={toY(v)} x2={PAD.left + innerW} y2={toY(v)}
+            stroke="#2e2e3e" strokeWidth="1" />
+        ))}
+        {/* Y axis labels */}
+        {yTicks.map(v => (
+          <text key={v} x={PAD.left - 4} y={toY(v) + 4} textAnchor="end"
+            fill="#555570" fontSize="9">{v}</text>
+        ))}
+        {/* X axis labels */}
+        {xTicks.map(i => (
+          <text key={i} x={toX(i)} y={H - 4} textAnchor="middle"
+            fill="#555570" fontSize="9">
+            {`J-${29 - i}`}
+          </text>
+        ))}
+        {/* Lines */}
+        {members.map((m: any) => {
+          const pid = m.profile_id || m.userId
+          const pts = cumulative[pid]
+          if (!pts) return null
+          const p = Array.isArray(m.profile) ? m.profile[0] : (m.profile ?? m)
+          const color = p?.color ?? m.color ?? '#6366f1'
+          return (
+            <polyline key={pid} points={polyline(pts)}
+              fill="none" stroke={color} strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" />
+          )
+        })}
+        {/* Endpoint dots */}
+        {members.map((m: any) => {
+          const pid = m.profile_id || m.userId
+          const pts = cumulative[pid]
+          if (!pts) return null
+          const p = Array.isArray(m.profile) ? m.profile[0] : (m.profile ?? m)
+          const color = p?.color ?? m.color ?? '#6366f1'
+          const lastVal = pts[29]
+          return (
+            <circle key={pid} cx={toX(29)} cy={toY(lastVal)} r="3"
+              fill={color} stroke="#13131a" strokeWidth="1.5" />
+          )
+        })}
+      </svg>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 mt-2">
+        {members.map((m: any) => {
+          const p = Array.isArray(m.profile) ? m.profile[0] : (m.profile ?? m)
+          const color = p?.color ?? m.color ?? '#6366f1'
+          const name = p?.display_name ?? m.userName ?? '?'
+          const pid = m.profile_id || m.userId
+          const total = cumulative[pid]?.[29] ?? 0
+          return (
+            <div key={pid} className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+              <span className="text-[10px] text-[#8888a0]">{name}</span>
+              <span className="text-[10px] font-bold text-[#f0f0f5]">{total}pts</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function ClassementContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const period = (['week', 'month', 'all'].includes(searchParams.get('period') ?? '') ? searchParams.get('period') : 'month') as Period
+  const period = (['week', 'month', 'all', 'history'].includes(searchParams.get('period') ?? '') ? searchParams.get('period') : 'month') as Period
   const supabase = createClient()
   const [data, setData] = useState<any>(null)
+  const [historyData, setHistoryData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [rawLogs, setRawLogs] = useState<any[]>([])
+  const [members, setMembers] = useState<any[]>([])
 
   useEffect(() => {
     const session = getProfileSession()
     if (!session) { router.replace('/profiles'); return }
-    load(session.profileId, session.householdId)
+    if (period === 'history') {
+      loadHistory(session.householdId)
+    } else {
+      load(session.profileId, session.householdId)
+    }
   }, [period])
+
+  async function loadHistory(householdId: string) {
+    setLoading(true)
+    const { data: logs } = await supabase
+      .from('task_logs')
+      .select('id, done_at, points_awarded, task:task_types(label, category), doer:profiles!done_by(display_name, color, avatar_url)')
+      .eq('household_id', householdId)
+      .order('done_at', { ascending: false })
+      .limit(100)
+    setHistoryData(logs ?? [])
+    setLoading(false)
+  }
 
   async function load(profileId: string, householdId: string) {
     let since: string | undefined
@@ -41,11 +177,14 @@ function ClassementContent() {
     let logsQuery = supabase.from('task_logs').select('done_by, points_awarded, done_at').eq('household_id', householdId)
     if (since) logsQuery = logsQuery.gte('done_at', since)
 
-    const [{ data: logs }, { data: members }, { data: allTimeLogs }] = await Promise.all([
+    const [{ data: logs }, { data: membersData }, { data: allTimeLogs }] = await Promise.all([
       logsQuery,
       supabase.from('household_members').select('profile_id, profile:profiles(id, display_name, color, avatar_url)').eq('household_id', householdId),
       supabase.from('task_logs').select('done_by, done_at').eq('household_id', householdId).order('done_at', { ascending: false }),
     ])
+
+    setRawLogs(logs ?? [])
+    setMembers(membersData ?? [])
 
     const pointsByProfile: Record<string, number> = {}
     for (const log of logs ?? []) {
@@ -61,7 +200,7 @@ function ClassementContent() {
       return streak
     }
 
-    const sorted = (members ?? [])
+    const sorted = (membersData ?? [])
       .map((m: any) => {
         const p = (Array.isArray(m.profile) ? m.profile[0] : m.profile) as Profile
         if (!p) return null
@@ -85,8 +224,63 @@ function ClassementContent() {
     setLoading(false)
   }
 
-  if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
+  if (period === 'history') {
+    function groupByDay(logs: any[]) {
+      const groups: Record<string, any[]> = {}
+      for (const log of logs) {
+        const day = new Date(log.done_at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+        if (!groups[day]) groups[day] = []
+        groups[day].push(log)
+      }
+      return groups
+    }
+    const grouped = groupByDay(historyData)
+    return (
+      <div className="p-4 flex flex-col gap-4 animate-slide-up">
+        <div className="flex p-1 bg-[#13131a] rounded-2xl border border-[#252535] overflow-x-auto">
+          {([['week', 'Semaine'], ['month', 'Mois'], ['all', 'All time'], ['history', 'Historique']] as const).map(([p, label]) => (
+            <a key={p} href={`?period=${p}`} className={`flex-shrink-0 flex-1 py-2 text-xs font-semibold rounded-xl transition-all text-center ${period === p ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-[#7070a0] hover:text-[#f0f0f8]'}`}>{label}</a>
+          ))}
+        </div>
+        {historyData.length === 0 ? (
+          <div className="text-center py-16 text-[#7070a0]">
+            <p className="font-medium">Aucune tâche complétée</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {Object.entries(grouped).map(([day, logs]) => (
+              <div key={day}>
+                <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-2 capitalize">{day}</p>
+                <div className="flex flex-col gap-2">
+                  {logs.map((log: any) => {
+                    const doer = Array.isArray(log.doer) ? log.doer[0] : log.doer
+                    const task = Array.isArray(log.task) ? log.task[0] : log.task
+                    const time = new Date(log.done_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                    return (
+                      <div key={log.id} className="flex items-center gap-3 bg-[#13131a] border border-[#252535] rounded-xl px-3 py-2.5">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 overflow-hidden" style={{ backgroundColor: doer?.color ?? '#6366f1' }}>
+                          {doer?.avatar_url ? <img src={doer.avatar_url} className="w-full h-full object-cover" /> : doer?.display_name?.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[#f0f0f8] truncate">{task?.label ?? 'Tâche'}</p>
+                          <p className="text-xs text-[#7070a0]">{doer?.display_name} · {time}</p>
+                        </div>
+                        <span className="text-sm font-bold text-red-400 flex-shrink-0">+{log.points_awarded} pts</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (!data) return null
   const { sorted, profileId } = data
 
   const podiumRankings: PodiumRanking[] = sorted
@@ -99,26 +293,27 @@ function ClassementContent() {
     displayed: true,
   }))
 
-  const now = new Date()
-  let fromDate: Date
-  if (period === 'week') fromDate = new Date(now.getTime() - 7 * 86400000)
-  else if (period === 'month') fromDate = new Date(now.getTime() - 30 * 86400000)
-  else fromDate = new Date('2024-01-01')
-
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
       {/* Period tabs */}
-      <div className="flex p-1 bg-[#13131a] rounded-2xl border border-[#252535]">
-        {([['week', 'Cette semaine'], ['month', 'Ce mois'], ['all', 'All time']] as const).map(([p, label]) => (
+      <div className="flex p-1 bg-[#13131a] rounded-2xl border border-[#252535] overflow-x-auto">
+        {([['week', 'Semaine'], ['month', 'Mois'], ['all', 'All time'], ['history', 'Historique']] as const).map(([p, label]) => (
           <a
             key={p}
             href={`?period=${p}`}
-            className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all text-center ${period === p ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-[#7070a0] hover:text-[#f0f0f8]'}`}
+            className={`flex-shrink-0 flex-1 py-2 text-xs font-semibold rounded-xl transition-all text-center ${period === p ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-[#7070a0] hover:text-[#f0f0f8]'}`}
           >
             {label}
           </a>
         ))}
       </div>
+
+      {/* Evolution chart - mois only */}
+      {period === 'month' && rawLogs.length > 0 && members.length > 0 && (
+        <div className="bg-[#13131a] border border-[#252535] rounded-2xl p-4">
+          <EvolutionChart logs={rawLogs} members={members} />
+        </div>
+      )}
 
       {/* Podium */}
       {podiumRankings.length > 0 && (

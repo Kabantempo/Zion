@@ -58,6 +58,10 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
     if (!error && data) {
       setTickets((prev) => [data as Ticket, ...prev])
       setTitle(''); setAssignedTo(''); setNote(''); setShowCreate(false)
+      // Notify assigned person if not self
+      if (assignedTo && assignedTo !== profileId) {
+        fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, excludeProfileId: profileId, title: '🎫 Ticket assigné', body: title.trim(), url: '/tickets' }) }).catch(() => {})
+      }
     }
     setLoading(null)
   }

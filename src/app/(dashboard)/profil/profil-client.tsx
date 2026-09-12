@@ -149,6 +149,85 @@ function CropModal({ src, onConfirm, onCancel }: { src: string; onConfirm: (data
   )
 }
 
+function NotificationToggle({ profileId, householdId }: { profileId: string; householdId: string }) {
+  const [status, setStatus] = useState<'loading' | 'unsupported' | 'denied' | 'off' | 'on'>('loading')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) { setStatus('unsupported'); return }
+    const perm = Notification.permission
+    if (perm === 'denied') { setStatus('denied'); return }
+    navigator.serviceWorker.ready.then(async (reg) => {
+      const sub = await reg.pushManager.getSubscription()
+      setStatus(sub ? 'on' : 'off')
+    })
+  }, [])
+
+  async function enable() {
+    setBusy(true)
+    try {
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') { setStatus('denied'); return }
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+      })
+      await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub.toJSON(), profileId, householdId }) })
+      setStatus('on')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function disable() {
+    setBusy(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (sub) await sub.unsubscribe()
+      await fetch('/api/push/subscribe', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profileId }) })
+      setStatus('off')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (status === 'unsupported') return null
+
+  return (
+    <Card>
+      <h3 className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Notifications</h3>
+      {status === 'denied' ? (
+        <p className="text-xs text-[#555570]">Notifications bloquées dans les paramètres du navigateur.</p>
+      ) : (
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-[#f0f0f8]">Alertes push</p>
+            <p className="text-xs text-[#7070a0] mt-0.5">
+              {status === 'on' ? 'Activées — tu recevras les activités des colocs' : 'Reçois une alerte quand tes colocs agissent'}
+            </p>
+          </div>
+          <button
+            onClick={status === 'on' ? disable : enable}
+            disabled={busy || status === 'loading'}
+            className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${status === 'on' ? 'bg-red-500' : 'bg-[#2e2e3e]'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${status === 'on' ? 'left-7' : 'left-1'}`} />
+          </button>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = atob(base64)
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
+}
+
 interface Props {
   profile: Profile
   household: { id: string; name: string; invite_code: string } | null
@@ -276,6 +355,9 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
           </div>
         </Card>
       )}
+
+      {/* Notifications */}
+      {household && <NotificationToggle profileId={profileId} householdId={household.id} />}
 
       {/* Logout */}
       <Card>

@@ -20,6 +20,48 @@ function StatBlock({ value, label, color }: { value: string; label: string; colo
   )
 }
 
+interface Challenge {
+  label: string
+  emoji: string
+  current: number
+  target: number
+  done: boolean
+  reward: string
+}
+
+function ChallengesCard({ challenges }: { challenges: Challenge[] }) {
+  const allDone = challenges.every(c => c.done)
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest">Défis de la semaine</p>
+        {allDone && <span className="text-xs font-bold text-yellow-400 animate-pulse">🏆 All done!</span>}
+      </div>
+      <div className="flex flex-col gap-3">
+        {challenges.map((c, i) => (
+          <div key={i}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">{c.emoji}</span>
+              <span className={`text-sm flex-1 font-medium ${c.done ? 'text-[#7070a0] line-through' : 'text-[#f0f0f8]'}`}>{c.label}</span>
+              {c.done
+                ? <span className="text-xs font-bold text-green-400">✓</span>
+                : <span className="text-xs text-[#8888a0]">{c.current}/{c.target}</span>
+              }
+            </div>
+            <div className="h-1.5 bg-[#2e2e3e] rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${c.done ? 'bg-green-500' : 'bg-gradient-to-r from-red-500 to-red-400'}`}
+                style={{ width: `${Math.min(100, (c.current / c.target) * 100)}%` }}
+              />
+            </div>
+            {c.done && <p className="text-[10px] text-green-400 mt-0.5">{c.reward}</p>}
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 export default function AccueilPage() {
   const router = useRouter()
   const pathname = usePathname()
@@ -37,6 +79,13 @@ export default function AccueilPage() {
     const since30 = new Date(Date.now() - 30 * 86400000).toISOString()
     const since7 = new Date(Date.now() - 7 * 86400000).toISOString()
 
+    // Week start = last Monday 00:00
+    const now2 = new Date()
+    const weekStart = new Date(now2)
+    weekStart.setDate(now2.getDate() - ((now2.getDay() + 6) % 7))
+    weekStart.setHours(0, 0, 0, 0)
+    const weekStartIso = weekStart.toISOString()
+
     const [
       { data: profile },
       { data: allLogs },
@@ -45,6 +94,7 @@ export default function AccueilPage() {
       { data: members },
       { data: taskTypes },
       { data: openTickets },
+      { data: weekTaskLogs },
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', profileId).single(),
       supabase.from('task_logs').select('done_by, points_awarded, done_at').eq('household_id', householdId).gte('done_at', since30),
@@ -53,6 +103,7 @@ export default function AccueilPage() {
       supabase.from('household_members').select('profile_id, profile:profiles(id, display_name, color, avatar_url)').eq('household_id', householdId),
       supabase.from('task_types').select('*').eq('household_id', householdId).order('category'),
       supabase.from('tickets').select('id').eq('household_id', householdId).in('status', ['todo', 'in_progress']).eq('assigned_to', profileId),
+      supabase.from('task_logs').select('done_by, done_at, points_awarded').eq('household_id', householdId).gte('done_at', weekStartIso),
     ])
 
     // Points
@@ -78,7 +129,29 @@ export default function AccueilPage() {
     const todayStr = new Date().toDateString()
     const todayCount = myLogs.filter((l: any) => new Date(l.done_at).toDateString() === todayStr).length
 
-    setData({ profile, myMonthPoints, myWeekPoints, level, lvlProgress, lvlNext, streak, rank, todayCount, recentActivity, members, taskTypes, openTickets: openTickets?.length ?? 0, profileId, householdId, weekByProfile })
+    // Weekly challenges
+    const weekLogsArr = weekTaskLogs ?? []
+    const totalWeekTasks = weekLogsArr.length
+    const totalWeekPts = weekLogsArr.reduce((s: number, l: any) => s + l.points_awarded, 0)
+    const activeProfiles = new Set(weekLogsArr.map((l: any) => l.done_by)).size
+    const totalMembers = (members ?? []).length
+
+    // Max tasks in one day
+    const dayTaskCount: Record<string, number> = {}
+    for (const l of weekLogsArr) {
+      const d = new Date(l.done_at).toDateString()
+      dayTaskCount[d] = (dayTaskCount[d] ?? 0) + 1
+    }
+    const maxDayTasks = Math.max(0, ...Object.values(dayTaskCount))
+
+    const challenges: { label: string; emoji: string; current: number; target: number; done: boolean; reward: string }[] = [
+      { label: '50 tâches ensemble', emoji: '⚡', current: totalWeekTasks, target: 50, done: totalWeekTasks >= 50, reward: 'La coloc est en feu cette semaine !' },
+      { label: 'Tous les membres actifs', emoji: '👥', current: activeProfiles, target: totalMembers, done: activeProfiles >= totalMembers && totalMembers > 0, reward: 'Tout le monde a participé !' },
+      { label: '10 tâches en un jour', emoji: '🔥', current: maxDayTasks, target: 10, done: maxDayTasks >= 10, reward: 'Journée de feu !' },
+      { label: '300 pts collectifs', emoji: '🏅', current: totalWeekPts, target: 300, done: totalWeekPts >= 300, reward: 'Record de la semaine !' },
+    ]
+
+    setData({ profile, myMonthPoints, myWeekPoints, level, lvlProgress, lvlNext, streak, rank, todayCount, recentActivity, members, taskTypes, openTickets: openTickets?.length ?? 0, profileId, householdId, weekByProfile, challenges })
     setLoading(false)
   }
 
@@ -86,7 +159,7 @@ export default function AccueilPage() {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
   }
 
-  const { profile, myMonthPoints, myWeekPoints, level, lvlProgress, lvlNext, streak, rank, todayCount, recentActivity, members, taskTypes, openTickets, profileId, householdId } = data
+  const { profile, myMonthPoints, myWeekPoints, level, lvlProgress, lvlNext, streak, rank, todayCount, recentActivity, members, taskTypes, openTickets, profileId, householdId, challenges } = data
 
   const greeting = (() => {
     const h = new Date().getHours()
@@ -137,6 +210,9 @@ export default function AccueilPage() {
           <StatBlock value={`${todayCount}`} label="Auj." color="text-green-400" />
         </div>
       </Card>
+
+      {/* Défis hebdomadaires */}
+      <ChallengesCard challenges={challenges} />
 
       {/* Quick task */}
       {taskTypes && taskTypes.length > 0 && (
