@@ -405,13 +405,26 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
                     }`}>
                       {day}
                     </span>
-                    {singleDayEvs.length > 0 && (
-                      <div className="flex gap-0.5 mt-0.5">
-                        {singleDayEvs.slice(0, 3).map((ev, idx) => (
-                          <div key={idx} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ev.color }} />
-                        ))}
-                      </div>
-                    )}
+                    {singleDayEvs.length > 0 && (() => {
+                      const bdayEvs = singleDayEvs.filter(e => (e.type as string) === 'birthday')
+                      const otherEvs = singleDayEvs.filter(e => (e.type as string) !== 'birthday')
+                      return (
+                        <div className="flex flex-col items-center gap-0.5 mt-0.5 w-full px-0.5">
+                          {bdayEvs.slice(0, 2).map((ev, idx) => (
+                            <p key={idx} className="text-[7px] leading-tight font-semibold truncate w-full text-center" style={{ color: ev.color }}>
+                              {ev.title.split(' ').slice(-1)[0]}
+                            </p>
+                          ))}
+                          {otherEvs.length > 0 && (
+                            <div className="flex gap-0.5">
+                              {otherEvs.slice(0, 3).map((ev, idx) => (
+                                <div key={idx} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ev.color }} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                     {cellBars.length > 0 && (
                       <div className="absolute bottom-0 left-0 right-0 flex flex-col" style={{ gap: 1 }}>
                         {cellBars.map((bar, i) => (
@@ -466,35 +479,6 @@ export function CalendarClient({ events: initialEvents, profiles, householdId, p
           )}
         </div>
       )}
-
-      {/* Mini months */}
-      <div className="grid grid-cols-2 gap-3">
-        {miniMonths.map(({ y, m }) => {
-          const cells = miniMonthDays(y, m)
-          return (
-            <button
-              key={`${y}-${m}`}
-              onClick={() => { setYear(y); setMonth(m); setSelectedDay(null) }}
-              className="bg-[#13131a] border border-[#252535] rounded-2xl p-3 text-left active:scale-[0.98] transition-all"
-            >
-              <p className="text-xs font-bold text-[#8888a0] mb-2">{MONTH_NAMES[m]} {y !== year ? y : ''}</p>
-              <div className="grid grid-cols-7 gap-0">
-                {cells.map((d, i) => {
-                  if (!d) return <div key={`e-${i}`} />
-                  const colors = miniEventsForDay(y, m, d)
-                  const isToday2 = d === now.getDate() && m === now.getMonth() && y === now.getFullYear()
-                  return (
-                    <div key={d} className="flex flex-col items-center py-0.5">
-                      <span className={`text-[9px] leading-4 w-4 text-center rounded-full ${isToday2 ? 'bg-red-500 text-white font-bold' : 'text-[#5050707]'}`}>{d}</span>
-                      {colors.length > 0 && <div className="w-1 h-1 rounded-full mt-0.5" style={{ backgroundColor: colors[0] }} />}
-                    </div>
-                  )
-                })}
-              </div>
-            </button>
-          )
-        })}
-      </div>
 
       {/* Create event sheet */}
       {showCreate && createPortal(
