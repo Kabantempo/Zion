@@ -48,7 +48,7 @@ export default function AccueilPage() {
       supabase.from('profiles').select('*').eq('id', profileId).single(),
       supabase.from('task_logs').select('done_by, points_awarded, done_at').eq('household_id', householdId).gte('done_at', since30),
       supabase.from('task_logs').select('done_by, points_awarded').eq('household_id', householdId).gte('done_at', since7),
-      supabase.from('task_logs').select('done_at, points_awarded, task_type:task_types(label, category), profile:profiles(display_name, color, avatar_url)').eq('household_id', householdId).order('done_at', { ascending: false }).limit(6),
+      supabase.from('task_logs').select('done_at, points_awarded, done_by, task_type:task_types(label, category), profile:profiles(display_name, color, avatar_url)').eq('household_id', householdId).gte('done_at', new Date(new Date().setHours(0,0,0,0)).toISOString()).order('done_at', { ascending: false }),
       supabase.from('household_members').select('profile_id, profile:profiles(id, display_name, color, avatar_url)').eq('household_id', householdId),
       supabase.from('task_types').select('*').eq('household_id', householdId).order('category'),
       supabase.from('tickets').select('id').eq('household_id', householdId).in('status', ['todo', 'in_progress']).eq('assigned_to', profileId),
@@ -172,7 +172,7 @@ export default function AccueilPage() {
       {/* Recent activity feed */}
       {recentActivity && recentActivity.length > 0 && (
         <Card>
-          <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Activité récente</p>
+          <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Aujourd'hui</p>
           <div className="flex flex-col gap-3">
             {recentActivity.map((log: any) => {
               const p = Array.isArray(log.profile) ? log.profile[0] : log.profile
@@ -195,9 +195,9 @@ export default function AccueilPage() {
 
       {recentActivity?.length === 0 && (
         <div className="text-center py-10 text-[#7070a0]">
-          <p className="text-4xl mb-3">🏠</p>
-          <p className="font-medium text-[#f0f0f8]">Aucune activité encore</p>
-          <p className="text-sm mt-1">Complète ta première tâche !</p>
+          <p className="text-4xl mb-3">☀️</p>
+          <p className="font-medium text-[#f0f0f8]">Rien encore aujourd'hui</p>
+          <p className="text-sm mt-1">Soyez le premier à compléter une tâche !</p>
         </div>
       )}
     </div>
