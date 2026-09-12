@@ -64,8 +64,8 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
 
   async function deleteTicket(ticketId: string) {
     setLoading(ticketId)
-    const { error } = await supabase.from('tickets').delete().eq('id', ticketId)
-    if (!error) setTickets((prev) => prev.filter((t) => t.id !== ticketId))
+    const res = await fetch(`/api/tickets/${ticketId}`, { method: 'DELETE' })
+    if (res.ok) setTickets((prev) => prev.filter((t) => t.id !== ticketId))
     setConfirmDelete(null)
     setLoading(null)
   }

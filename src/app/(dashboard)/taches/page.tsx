@@ -173,15 +173,15 @@ export default function TachesPage() {
     if (celebrationTimer.current) clearTimeout(celebrationTimer.current)
     setCelebration(null)
     setDoneTodayIds(prev => { const s = new Set(prev); s.delete(taskId); return s })
-    await supabase.from('task_logs').delete().eq('id', logId)
+    await fetch(`/api/task-logs/${logId}`, { method: 'DELETE' })
   }, [])
 
   const deleteLog = useCallback(async (logId: string, taskTypeId: string, doneBy: string, doneAt: string) => {
-    await supabase.from('task_logs').delete().eq('id', logId)
+    const res = await fetch(`/api/task-logs/${logId}`, { method: 'DELETE' })
+    if (!res.ok) { console.error('deleteLog failed', await res.text()); return }
     setData((prev: any) => {
       if (!prev) return prev
-      const recentLogs = prev.recentLogs.filter((l: any) => l.id !== logId)
-      return { ...prev, recentLogs }
+      return { ...prev, recentLogs: prev.recentLogs.filter((l: any) => l.id !== logId) }
     })
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
     if (doneBy === data?.profileId && new Date(doneAt) >= todayStart) {
