@@ -119,9 +119,9 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                         <button onClick={() => deleteTicket(ticket.id)} className="text-xs text-red-400 font-semibold px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20">Oui</button>
                         <button onClick={() => setConfirmDelete(null)} className="text-xs text-[#7070a0] px-2 py-1 rounded-lg hover:bg-[#2e2e3e]">Non</button>
                       </div>
-                    ) : (
+                    ) : ticket.created_by === profileId ? (
                       <button onClick={() => setConfirmDelete(ticket.id)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 active:text-red-400 hover:bg-red-500/10 active:bg-red-500/10 transition-all flex-shrink-0">✕</button>
-                    )}
+                    ) : null}
                   </div>
                   {ticket.assignee && (
                     <div className="flex items-center gap-2 mb-2">

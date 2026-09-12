@@ -187,7 +187,8 @@ export default function TachesPage() {
     if (doneBy === data?.profileId && new Date(doneAt) >= todayStart) {
       setDoneTodayIds(prev => { const s = new Set(prev); s.delete(taskTypeId); return s })
     }
-  }, [data?.profileId])
+    router.refresh()
+  }, [data?.profileId, router])
 
   if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
@@ -248,11 +249,13 @@ export default function TachesPage() {
                   <p className="text-xs text-[#8888a0]">{log.profile?.display_name} · {formatRelative(log.done_at)}</p>
                 </div>
                 <span className="text-xs font-bold text-green-400">+{log.points_awarded}</span>
-                <button
-                  onClick={() => deleteLog(log.id, log.task_type_id, log.done_by, log.done_at)}
-                  className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 active:text-red-400 hover:bg-red-500/10 active:bg-red-500/10 transition-all"
-                  title="Annuler cette tâche"
-                >✕</button>
+                {log.done_by === profileId && (
+                  <button
+                    onClick={() => deleteLog(log.id, log.task_type_id, log.done_by, log.done_at)}
+                    className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 active:text-red-400 hover:bg-red-500/10 active:bg-red-500/10 transition-all"
+                    title="Annuler cette tâche"
+                  >✕</button>
+                )}
               </div>
             ))}
           </div>
