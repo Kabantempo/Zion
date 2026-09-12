@@ -17,6 +17,7 @@ const ACHIEVEMENTS = [
   { key: 'streak_7', icon: '🌋', label: 'Série de feu', description: 'Streak de 7 jours' },
   { key: 'streak_30', icon: '⚡', label: 'Indestructible', description: 'Streak de 30 jours' },
   { key: 'savior', icon: '🦸', label: 'Sauveur', description: 'Prendre un ticket non assigné' },
+  { key: 'cyberpsycho', icon: '🤖', label: 'Cyberpsycho', description: 'Terminer 10 tickets' },
   { key: 'points_500', icon: '💰', label: 'Riche en mérites', description: 'Cumuler 500 points' },
   { key: 'points_2000', icon: '💎', label: 'Diamant', description: 'Cumuler 2000 points' },
   { key: 'all_categories', icon: '🎨', label: 'Polyvalent', description: 'Tâches dans 5 catégories' },
@@ -48,6 +49,7 @@ function computeUnlocked(stats: Stats) {
     streak_7: streak >= 7,
     streak_30: streak >= 30,
     savior: saviorCount >= 1,
+    cyberpsycho: saviorCount >= 10,
     points_500: totalPoints >= 500,
     points_2000: totalPoints >= 2000,
     all_categories: categoriesDone.size >= 5,
@@ -68,6 +70,7 @@ function getProgress(key: string, stats: Stats): number {
     case 'points_500': return Math.min(100, (totalPoints / 500) * 100)
     case 'points_2000': return Math.min(100, (totalPoints / 2000) * 100)
     case 'all_categories': return Math.min(100, (categoriesDone.size / 5) * 100)
+    case 'cyberpsycho': return Math.min(100, (saviorCount / 10) * 100)
     default: return 0
   }
 }
