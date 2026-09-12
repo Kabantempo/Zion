@@ -27,11 +27,11 @@ function PodiumSlot({ ranking, isCenter }: PodiumSlotProps) {
     <div className={cn('flex flex-col items-center gap-1.5', isCenter ? 'order-2 z-10' : ranking.rank === 2 ? 'order-1' : 'order-3')}>
       <span className="text-lg">{medals[ranking.rank]}</span>
       <div
-        className={cn('rounded-2xl flex items-center justify-center font-black text-white shadow-lg flex-shrink-0', avatarSizes[ranking.rank])}
+        className={cn('rounded-full flex items-center justify-center font-black text-white shadow-lg flex-shrink-0', avatarSizes[ranking.rank])}
         style={{ backgroundColor: ranking.color ?? '#555', boxShadow: ranking.rank === 1 ? `0 8px 24px ${ranking.color ?? '#ef4444'}50` : undefined }}
       >
         {ranking.avatarUrl
-          ? <img src={ranking.avatarUrl} alt={ranking.userName} className="w-full h-full object-cover rounded-2xl" />
+          ? <img src={ranking.avatarUrl} alt={ranking.userName} className="w-full h-full object-cover rounded-full" />
           : initials
         }
       </div>

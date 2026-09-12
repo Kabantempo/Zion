@@ -229,7 +229,7 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
           <div className="flex justify-center mb-5">
             <button type="button" onClick={() => fileRef.current?.click()} className="relative group">
               <div
-                className="w-24 h-24 rounded-3xl overflow-hidden flex items-center justify-center text-2xl font-black text-white shadow-xl transition-opacity group-hover:opacity-80"
+                className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-2xl font-black text-white shadow-xl transition-opacity group-hover:opacity-80"
                 style={{ backgroundColor: avatarPreview ? 'transparent' : color }}
               >
                 {avatarPreview

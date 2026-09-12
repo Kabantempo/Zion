@@ -205,7 +205,7 @@ export default function ProfilesPage() {
             <div className="flex justify-center">
               <label className="cursor-pointer group relative">
                 <div
-                  className="w-28 h-28 rounded-3xl flex items-center justify-center text-3xl font-black text-white transition-all group-hover:opacity-80 overflow-hidden shadow-2xl"
+                  className="w-28 h-28 rounded-full flex items-center justify-center text-3xl font-black text-white transition-all group-hover:opacity-80 overflow-hidden shadow-2xl"
                   style={{ backgroundColor: avatarPreview ? 'transparent' : color }}
                 >
                   {avatarPreview
@@ -277,7 +277,7 @@ export default function ProfilesPage() {
               className="flex flex-col items-center gap-2.5 group"
             >
               <div
-                className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center text-2xl font-black text-white transition-all duration-200 group-hover:scale-105 group-hover:shadow-2xl group-active:scale-95 shadow-lg"
+                className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-2xl font-black text-white transition-all duration-200 group-hover:scale-105 group-hover:shadow-2xl group-active:scale-95 shadow-lg"
                 style={{ backgroundColor: profile.color, boxShadow: `0 8px 24px ${profile.color}40` }}
               >
                 {profile.avatar_url
