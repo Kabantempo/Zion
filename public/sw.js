@@ -1,10 +1,9 @@
-const CACHE_NAME = 'zion-v1'
-const STATIC_ASSETS = ['/', '/taches', '/tickets', '/calendrier', '/classement', '/succes', '/profil']
+const CACHE_NAME = 'zion-v3'
+
+// Only cache static assets — never HTML pages (they reference versioned JS chunks)
+const STATIC_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2']
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).catch(() => {})
-  )
   self.skipWaiting()
 })
 
@@ -19,8 +18,26 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
-  if (event.request.url.includes('/api/') || event.request.url.includes('supabase')) return
+  if (event.request.url.includes('supabase')) return
 
+  const url = new URL(event.request.url)
+
+  // API routes: never cache
+  if (url.pathname.startsWith('/api/')) return
+
+  // HTML pages: always fetch from network (so deploys are picked up immediately)
+  const isStaticAsset = STATIC_EXTENSIONS.some(ext => url.pathname.endsWith(ext)) ||
+    url.pathname.startsWith('/_next/static/')
+
+  if (!isStaticAsset) {
+    // Network only for HTML pages
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    )
+    return
+  }
+
+  // Static assets: network first, cache fallback
   event.respondWith(
     fetch(event.request)
       .then((response) => {
