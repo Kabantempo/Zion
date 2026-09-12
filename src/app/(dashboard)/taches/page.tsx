@@ -241,7 +241,7 @@ export default function TachesPage() {
           <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">Historique</h3>
           <div className="flex flex-col gap-2">
             {recentLogs.map((log: any) => (
-              <div key={log.id} className="flex items-center gap-3 px-1 py-1 group">
+              <div key={log.id} className="flex items-center gap-3 px-1 py-1">
                 {log.profile && <Avatar name={log.profile.display_name} color={log.profile.color} avatarUrl={log.profile.avatar_url} size="sm" />}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[#f0f0f5] truncate">{log.task_type?.label}</p>
@@ -250,7 +250,7 @@ export default function TachesPage() {
                 <span className="text-xs font-bold text-green-400">+{log.points_awarded}</span>
                 <button
                   onClick={() => deleteLog(log.id, log.task_type_id, log.done_by, log.done_at)}
-                  className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                  className="ml-1 w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 active:text-red-400 hover:bg-red-500/10 active:bg-red-500/10 transition-all"
                   title="Annuler cette tâche"
                 >✕</button>
               </div>

@@ -110,7 +110,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
             </div>
             <div className="flex flex-col gap-2">
               {col.map((ticket) => (
-                <Card key={ticket.id} className="group">
+                <Card key={ticket.id}>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <p className="text-sm font-medium text-[#f0f0f5] flex-1">{ticket.title}</p>
                     <Badge variant={STATUS_BADGE[ticket.status]}>{STATUS_LABELS[ticket.status]}</Badge>
@@ -120,7 +120,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                         <button onClick={() => setConfirmDelete(null)} className="text-xs text-[#7070a0] px-2 py-1 rounded-lg hover:bg-[#2e2e3e]">Non</button>
                       </div>
                     ) : (
-                      <button onClick={() => setConfirmDelete(ticket.id)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">✕</button>
+                      <button onClick={() => setConfirmDelete(ticket.id)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 active:text-red-400 hover:bg-red-500/10 active:bg-red-500/10 transition-all flex-shrink-0">✕</button>
                     )}
                   </div>
                   {ticket.assignee && (
