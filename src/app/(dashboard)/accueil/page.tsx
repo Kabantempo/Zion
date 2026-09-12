@@ -78,7 +78,7 @@ export default function AccueilPage() {
     const todayStr = new Date().toDateString()
     const todayCount = myLogs.filter((l: any) => new Date(l.done_at).toDateString() === todayStr).length
 
-    setData({ profile, myMonthPoints, myWeekPoints, level, lvlProgress, lvlNext, streak, rank, todayCount, recentActivity, members, taskTypes, openTickets: openTickets?.length ?? 0, profileId, householdId })
+    setData({ profile, myMonthPoints, myWeekPoints, level, lvlProgress, lvlNext, streak, rank, todayCount, recentActivity, members, taskTypes, openTickets: openTickets?.length ?? 0, profileId, householdId, weekByProfile })
     setLoading(false)
   }
 
