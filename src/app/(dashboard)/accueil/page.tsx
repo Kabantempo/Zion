@@ -30,6 +30,7 @@ interface Challenge {
 }
 
 function ChallengesCard({ challenges }: { challenges: Challenge[] }) {
+  if (!challenges?.length) return null
   const allDone = challenges.every(c => c.done)
   return (
     <Card>

@@ -69,7 +69,7 @@ function EvolutionChart({ logs, members }: { logs: any[]; members: any[] }) {
 
   return (
     <div>
-      <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Évolution ce mois</p>
+      <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Évolution des points</p>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 160 }}>
         {/* Grid lines */}
         {yTicks.map(v => (
@@ -308,8 +308,8 @@ function ClassementContent() {
         ))}
       </div>
 
-      {/* Evolution chart - mois only */}
-      {period === 'month' && rawLogs.length > 0 && members.length > 0 && (
+      {/* Evolution chart */}
+      {rawLogs.length > 0 && members.length > 0 && (
         <div className="bg-[#13131a] border border-[#252535] rounded-2xl p-4">
           <EvolutionChart logs={rawLogs} members={members} />
         </div>
