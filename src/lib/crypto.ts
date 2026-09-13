@@ -54,7 +54,7 @@ async function deriveSharedKey(myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonW
 
 async function encryptBytes(key: CryptoKey, data: Uint8Array): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data)
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data as unknown as ArrayBuffer)
   const combined = new Uint8Array(iv.length + ciphertext.byteLength)
   combined.set(iv, 0)
   combined.set(new Uint8Array(ciphertext), iv.length)
@@ -94,7 +94,7 @@ export async function wrapGroupKey(groupKey: CryptoKey, myPrivateKey: CryptoKey,
 export async function unwrapGroupKey(wrapped: string, myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonWebKey): Promise<CryptoKey> {
   const sharedKey = await deriveSharedKey(myPrivateKey, theirPublicKeyJwk)
   const raw = await decryptBytes(sharedKey, wrapped)
-  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+  return crypto.subtle.importKey('raw', raw as unknown as ArrayBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
 }
 
 export async function encryptWithGroupKey(text: string, groupKey: CryptoKey): Promise<string> {
