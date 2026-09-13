@@ -133,17 +133,19 @@ export default function SuccesPage() {
       {earned.length > 0 && (
         <>
           <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mt-1">Obtenus</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-2">
             {earned.map(a => {
               const s = TIER_STYLE[a.tier]
               const alsoHave = others.filter(([, v]: any) => v.achieved.has(a.id)).map(([, v]: any) => v.profile)
               return (
-                <div key={a.id} className={`bg-gradient-to-br ${s.card} border rounded-xl p-3`}>
-                  <p className="text-2xl mb-1">{a.emoji}</p>
-                  <p className={`text-xs font-bold ${s.label}`}>{a.label}</p>
-                  <p className="text-[10px] text-[#7070a0] mt-0.5">{a.desc}</p>
+                <div key={a.id} className={`bg-gradient-to-br ${s.card} border rounded-xl px-4 py-3 flex items-center gap-4`}>
+                  <p className="text-2xl flex-shrink-0">{a.emoji}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-bold ${s.label}`}>{a.label}</p>
+                    <p className="text-[11px] text-[#7070a0] mt-0.5">{a.desc}</p>
+                  </div>
                   {alsoHave.length > 0 && (
-                    <div className="flex -space-x-1.5 mt-2">
+                    <div className="flex -space-x-1.5 flex-shrink-0">
                       {alsoHave.map((p: any) => (
                         <Avatar key={p.id} name={p.display_name} color={p.color} avatarUrl={p.avatar_url} size="xs" className="ring-1 ring-[#13131a]" />
                       ))}
@@ -160,16 +162,18 @@ export default function SuccesPage() {
       {locked.length > 0 && (
         <>
           <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mt-1">À débloquer</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-2">
             {locked.map(a => {
               const alsoHave = others.filter(([, v]: any) => v.achieved.has(a.id)).map(([, v]: any) => v.profile)
               return (
-                <div key={a.id} className="bg-[#1c1c26] border border-[#2e2e3e] rounded-xl p-3 opacity-50">
-                  <p className="text-2xl mb-1 grayscale">{a.emoji}</p>
-                  <p className="text-xs font-bold text-[#555570]">{a.label}</p>
-                  <p className="text-[10px] text-[#444458] mt-0.5">{a.desc}</p>
+                <div key={a.id} className="bg-[#1c1c26] border border-[#2e2e3e] rounded-xl px-4 py-3 flex items-center gap-4 opacity-50">
+                  <p className="text-2xl flex-shrink-0 grayscale">{a.emoji}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-[#555570]">{a.label}</p>
+                    <p className="text-[11px] text-[#444458] mt-0.5">{a.desc}</p>
+                  </div>
                   {alsoHave.length > 0 && (
-                    <div className="flex -space-x-1.5 mt-2">
+                    <div className="flex -space-x-1.5 flex-shrink-0">
                       {alsoHave.map((p: any) => (
                         <Avatar key={p.id} name={p.display_name} color={p.color} avatarUrl={p.avatar_url} size="xs" className="ring-1 ring-[#13131a]" />
                       ))}
