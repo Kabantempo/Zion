@@ -103,25 +103,22 @@ export default function MessagesPage() {
     if (row?.wrapped_key && row?.created_by) {
       // Unwrap using shared secret with creator
       const creatorId = row.created_by
+      let key: CryptoKey | null = null
       if (creatorId === myId) {
-        // I'm the creator — need creator's own public key to unwrap (stored as my own public key)
         const myPubRes = await fetch(`/api/messages/keys?profileId=${myId}`)
         const myPubRow = await myPubRes.json()
-        if (!myPubRow?.public_key_jwk) return null
-        try {
-          const key = await unwrapGroupKey(row.wrapped_key, myKeyPair.privateKey, JSON.parse(myPubRow.public_key_jwk))
-          return key
-        } catch { return null }
+        if (myPubRow?.public_key_jwk) {
+          try { key = await unwrapGroupKey(row.wrapped_key, myKeyPair.privateKey, JSON.parse(myPubRow.public_key_jwk)) } catch {}
+        }
       } else {
-        // Unwrap using shared secret with creator
         const creatorPubRes = await fetch(`/api/messages/keys?profileId=${creatorId}`)
         const creatorPubRow = await creatorPubRes.json()
-        if (!creatorPubRow?.public_key_jwk) return null
-        try {
-          const key = await unwrapGroupKey(row.wrapped_key, myKeyPair.privateKey, JSON.parse(creatorPubRow.public_key_jwk))
-          return key
-        } catch { return null }
+        if (creatorPubRow?.public_key_jwk) {
+          try { key = await unwrapGroupKey(row.wrapped_key, myKeyPair.privateKey, JSON.parse(creatorPubRow.public_key_jwk)) } catch {}
+        }
       }
+      if (key) return key
+      // Unwrap failed (key pair changed) — fall through to regenerate
     }
 
     // No key yet — I'll create it and distribute to all members who have public keys
@@ -332,7 +329,7 @@ export default function MessagesPage() {
             return (
               <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
                 {showName && <p className="text-[10px] text-[#7070a0] mb-0.5 ml-10">{msg.senderName}</p>}
-                <div className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`flex items-end gap-2 w-full ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
                   {isGroup && !isMine && (
                     isLast
                       ? <Avatar name={msg.senderName ?? '?'} color={msg.senderColor ?? '#555'} avatarUrl={msg.senderAvatar} size="sm" className="flex-shrink-0 mb-0.5" />
