@@ -20,7 +20,7 @@ export default function TicketsPage() {
   }, [])
 
   async function load(profileId: string, householdId: string) {
-    const [{ data: tickets }, { data: members }, { data: taskTypes }] = await Promise.all([
+    const [{ data: tickets }, { data: members }, { data: taskTypes }, { data: myProfile }] = await Promise.all([
       supabase.from('tickets')
         .select('*, assignee:profiles!assigned_to(id, display_name, color, avatar_url), creator:profiles!created_by(display_name)')
         .eq('household_id', householdId)
@@ -29,10 +29,12 @@ export default function TicketsPage() {
         .select('profile_id, profile:profiles(id, display_name, color, avatar_url)')
         .eq('household_id', householdId),
       supabase.from('task_types').select('id, label').eq('household_id', householdId),
+      supabase.from('profiles').select('display_name').eq('id', profileId).single(),
     ])
 
     const profiles = (members ?? []).map((m: any) => Array.isArray(m.profile) ? m.profile[0] : m.profile).filter(Boolean) as Profile[]
-    setData({ tickets: tickets ?? [], profiles, taskTypes: taskTypes ?? [], householdId, profileId })
+    const displayName = (myProfile as any)?.display_name ?? 'Quelqu\'un'
+    setData({ tickets: tickets ?? [], profiles, taskTypes: taskTypes ?? [], householdId, profileId, displayName })
     setLoading(false)
   }
 
@@ -45,6 +47,7 @@ export default function TicketsPage() {
       taskTypes={data.taskTypes}
       householdId={data.householdId}
       profileId={data.profileId}
+      displayName={data.displayName}
     />
   )
 }

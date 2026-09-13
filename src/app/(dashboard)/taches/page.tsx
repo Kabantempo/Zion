@@ -125,7 +125,7 @@ export default function TachesPage() {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
-    const [{ data: taskTypes }, { data: recentLogs }, { data: todayLogs }] = await Promise.all([
+    const [{ data: taskTypes }, { data: recentLogs }, { data: todayLogs }, { data: myProfile }] = await Promise.all([
       supabase.from('task_types').select('*').eq('household_id', householdId).order('category').order('label'),
       supabase.from('task_logs')
         .select('*, task_type:task_types(label, category, points), profile:profiles(display_name, color, avatar_url)')
@@ -137,6 +137,7 @@ export default function TachesPage() {
         .eq('household_id', householdId)
         .eq('done_by', profileId)
         .gte('done_at', todayStart.toISOString()),
+      supabase.from('profiles').select('display_name').eq('id', profileId).single(),
     ])
 
     const categories: Record<string, TaskType[]> = {}
@@ -145,8 +146,9 @@ export default function TachesPage() {
       categories[t.category].push(t)
     }
 
+    const displayName = (myProfile as any)?.display_name ?? 'Quelqu\'un'
     setDoneTodayIds(new Set((todayLogs ?? []).map((l: any) => l.task_type_id)))
-    setData({ taskTypes: taskTypes ?? [], recentLogs: recentLogs ?? [], categories, profileId, householdId })
+    setData({ taskTypes: taskTypes ?? [], recentLogs: recentLogs ?? [], categories, profileId, householdId, displayName })
     setLoading(false)
   }
 
@@ -165,7 +167,7 @@ export default function TachesPage() {
       setCelebration({ label: task.label, points: task.points, logId: inserted.id, taskId: task.id })
       celebrationTimer.current = setTimeout(() => { setCelebration(null); router.refresh() }, 3000)
       // Notify other household members
-      fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId: data.householdId, excludeProfileId: data.profileId, title: '✅ Tâche complétée', body: `+${task.points} pts · ${task.label}`, url: '/accueil' }) }).catch(() => {})
+      fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId: data.householdId, excludeProfileId: data.profileId, title: `✅ ${data.displayName} a fini`, body: `${task.label} · +${task.points} pts`, url: '/accueil' }) }).catch(() => {})
     } else {
       setDoneTodayIds(prev => { const s = new Set(prev); s.delete(task.id); return s })
     }
@@ -215,7 +217,7 @@ export default function TachesPage() {
         document.body
       )}
 
-      <TaskActions taskTypes={taskTypes} householdId={householdId} profileId={profileId} />
+      <TaskActions taskTypes={taskTypes} householdId={householdId} profileId={profileId} displayName={data.displayName} />
 
       <div>
         <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">

@@ -24,9 +24,10 @@ interface Props {
   taskTypes: { id: string; label: string }[]
   householdId: string
   profileId: string
+  displayName: string
 }
 
-export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, householdId, profileId }: Props) {
+export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, householdId, profileId, displayName }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [tickets, setTickets] = useState(initialTickets)
@@ -117,9 +118,11 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
     const { error } = await supabase.from('tickets').update(update).eq('id', ticket.id)
     if (!error) {
       setTickets((prev) => prev.map((t) => t.id === ticket.id ? { ...t, ...update } : t))
-      // Award points when ticket is completed
-      if (newStatus === 'done' && ticket.points > 0) {
-        fetch('/api/tickets/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, profileId, points: ticket.points, label: ticket.title }) }).catch(() => {})
+      if (newStatus === 'done') {
+        if (ticket.points > 0) fetch('/api/tickets/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, profileId, points: ticket.points, label: ticket.title }) }).catch(() => {})
+        fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, excludeProfileId: profileId, title: `✅ ${displayName} a terminé`, body: `"${ticket.title}"`, url: '/tickets' }) }).catch(() => {})
+      } else if (newStatus === 'in_progress') {
+        fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, excludeProfileId: profileId, title: `🔧 ${displayName} a commencé`, body: `"${ticket.title}"`, url: '/tickets' }) }).catch(() => {})
       }
     }
     setLoading(null)

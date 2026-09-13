@@ -12,6 +12,7 @@ interface Props {
   taskTypes: TaskType[]
   householdId: string
   profileId: string
+  displayName: string
 }
 
 const CATEGORIES = ['Cuisine', 'Sol', 'Salle de bain', 'Poubelles', 'Courses', 'Salon', 'Autre']
@@ -22,7 +23,7 @@ const FREQUENCIES = [
   { value: 'as_needed', label: 'Selon besoin' },
 ]
 
-export function TaskActions({ taskTypes, householdId, profileId }: Props) {
+export function TaskActions({ taskTypes, householdId, profileId, displayName }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [showLog, setShowLog] = useState(false)
@@ -49,6 +50,7 @@ export function TaskActions({ taskTypes, householdId, profileId }: Props) {
     if (!error) {
       setCelebration({ label: task.label, points: task.points })
       setShowLog(false)
+      fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, excludeProfileId: profileId, title: `✅ ${displayName} a fini`, body: `${task.label} · +${task.points} pts`, url: '/accueil' }) }).catch(() => {})
       setTimeout(() => { setCelebration(null); router.refresh() }, 2000)
     }
     setLoading(null)

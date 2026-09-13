@@ -47,7 +47,7 @@ const LeaderboardRankings = React.forwardRef<HTMLDivElement, LeaderboardRankings
                 {medals[item.rank] ?? `${item.rank}`}
               </span>
               <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black text-white flex-shrink-0 overflow-hidden"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0 overflow-hidden"
                 style={{ backgroundColor: item.color ?? '#555' }}
               >
                 {item.avatarUrl
