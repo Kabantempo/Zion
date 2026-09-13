@@ -220,10 +220,13 @@ export default function TachesPage() {
       <TaskActions taskTypes={taskTypes} householdId={householdId} profileId={profileId} displayName={data.displayName} />
 
       <div>
-        <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">
-          Tâches disponibles
-          <span className="text-[#555570] font-normal ml-2 text-xs">← glisser pour valider</span>
-        </h3>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <h3 className="text-sm font-semibold text-[#8888a0]">
+            Tâches disponibles
+            <span className="text-[#555570] font-normal ml-2 text-xs">← glisser pour valider</span>
+          </h3>
+          <a href="/historique" className="text-xs text-[#7070a0] hover:text-red-400 transition-colors">Historique →</a>
+        </div>
         {Object.entries(categories).map(([category, tasks]: [string, any]) => (
           <div key={category} className="mb-4">
             <p className="text-xs font-semibold text-[#555570] uppercase tracking-wider mb-2 px-1">{category}</p>
