@@ -39,11 +39,13 @@ export async function POST(req: NextRequest) {
       await webPush.sendNotification(subData.subscription, payload)
       sent++
     } catch (err: any) {
+      console.error('[push] send error', profileId, err.statusCode, err.message)
       if (err.statusCode === 410 || err.statusCode === 404) {
         await adminSupabase.storage.from('push').remove([`${householdId}/${file.name}`])
       }
     }
   }
 
-  return NextResponse.json({ ok: true, sent })
+  console.log('[push] sent', sent, '/', files.length)
+  return NextResponse.json({ ok: true, sent, total: files.length })
 }
