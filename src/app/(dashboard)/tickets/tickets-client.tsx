@@ -39,6 +39,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   const [title, setTitle] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
   const [note, setNote] = useState('')
+  const [points, setPoints] = useState('10')
 
   const displayTickets = filter === 'mine' ? tickets.filter((t) => t.assigned_to === profileId) : tickets
 
@@ -53,11 +54,12 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
       note: note || null,
       status: 'todo',
       created_by: profileId,
+      points: parseInt(points) || 0,
     }).select('*, assignee:profiles!assigned_to(id, display_name, color, avatar_url)').single()
 
     if (!error && data) {
       setTickets((prev) => [data as Ticket, ...prev])
-      setTitle(''); setAssignedTo(''); setNote(''); setShowCreate(false)
+      setTitle(''); setAssignedTo(''); setNote(''); setPoints('10'); setShowCreate(false)
       // Notify assigned person if not self
       if (assignedTo && assignedTo !== profileId) {
         fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, excludeProfileId: profileId, title: '🎫 Ticket assigné', body: title.trim(), url: '/tickets' }) }).catch(() => {})
@@ -87,6 +89,10 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
     const { error } = await supabase.from('tickets').update(update).eq('id', ticket.id)
     if (!error) {
       setTickets((prev) => prev.map((t) => t.id === ticket.id ? { ...t, ...update } : t))
+      // Award points when ticket is completed
+      if (newStatus === 'done' && ticket.points > 0) {
+        fetch('/api/tickets/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, profileId, points: ticket.points, label: ticket.title }) }).catch(() => {})
+      }
     }
     setLoading(null)
   }
@@ -116,7 +122,10 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
               {col.map((ticket) => (
                 <Card key={ticket.id}>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <p className="text-sm font-medium text-[#f0f0f5] flex-1">{ticket.title}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#f0f0f5]">{ticket.title}</p>
+                      {ticket.points > 0 && <p className="text-xs font-bold text-yellow-400 mt-0.5">+{ticket.points} pts</p>}
+                    </div>
                     <Badge variant={STATUS_BADGE[ticket.status]}>{STATUS_LABELS[ticket.status]}</Badge>
                     {confirmDelete === ticket.id ? (
                       <div className="flex gap-1">
@@ -191,6 +200,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
               </select>
             </div>
             <Input label="Note (optionnel)" placeholder="Plus d'infos..." value={note} onChange={(e) => setNote(e.target.value)} />
+            <Input label="Points à attribuer" type="number" min="0" max="500" value={points} onChange={(e) => setPoints(e.target.value)} />
             <Button type="submit" loading={loading === 'create'} className="w-full">Créer le ticket</Button>
           </form>
         </div>
