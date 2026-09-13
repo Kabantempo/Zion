@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
 import { Avatar } from '@/components/ui/avatar'
-import { getOrCreateKeyPair, encryptMessage, decryptMessage } from '@/lib/crypto'
+import {
+  getOrCreateKeyPair,
+  encryptMessage, decryptMessage,
+  generateGroupKey, wrapGroupKey, unwrapGroupKey,
+  encryptWithGroupKey, decryptWithGroupKey,
+} from '@/lib/crypto'
 import type { Profile } from '@/types'
 
 type ChatTarget = 'group' | Profile
@@ -37,15 +42,17 @@ export default function MessagesPage() {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [groupStatus, setGroupStatus] = useState<'ok' | 'waiting' | 'setup'>('waiting')
   const [theirKeyMissing, setTheirKeyMissing] = useState(false)
+
   const keyPairRef = useRef<CryptoKeyPair | null>(null)
   const theirKeyRef = useRef<JsonWebKey | null>(null)
+  const groupKeyRef = useRef<CryptoKey | null>(null)
   const lastMsgIdRef = useRef<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const myProfileIdRef = useRef('')
   const householdIdRef = useRef('')
-  const chatRef = useRef<ChatTarget | null>(null)
 
   useEffect(() => {
     const session = getProfileSession()
@@ -77,30 +84,98 @@ export default function MessagesPage() {
     setLoading(false)
   }
 
-  const decryptMsg = useCallback(async (msg: RawMessage, theirKey: JsonWebKey): Promise<string> => {
-    if (!keyPairRef.current) return '🔒'
-    try { return await decryptMessage(msg.encrypted_content, keyPairRef.current.privateKey, theirKey) }
-    catch { return '🔒' }
-  }, [])
-
-  function senderInfo(msg: RawMessage) {
-    const p = allMembers.find(m => m.id === msg.from_profile_id)
+  function senderInfo(fromId: string) {
+    const p = allMembers.find(m => m.id === fromId)
     return { name: p?.display_name ?? '?', color: p?.color ?? '#555', avatar: p?.avatar_url ?? null }
+  }
+
+  // Load or setup the group key
+  async function loadGroupKey(allProfiles: Profile[]): Promise<CryptoKey | null> {
+    const myId = myProfileIdRef.current
+    const hid = householdIdRef.current
+    const myKeyPair = keyPairRef.current
+    if (!myKeyPair) return null
+
+    // Try to fetch my wrapped group key
+    const res = await fetch(`/api/messages/group-key?householdId=${hid}&profileId=${myId}`)
+    const row = await res.json()
+
+    if (row?.wrapped_key && row?.created_by) {
+      // Unwrap using shared secret with creator
+      const creatorId = row.created_by
+      if (creatorId === myId) {
+        // I'm the creator — need creator's own public key to unwrap (stored as my own public key)
+        const myPubRes = await fetch(`/api/messages/keys?profileId=${myId}`)
+        const myPubRow = await myPubRes.json()
+        if (!myPubRow?.public_key_jwk) return null
+        try {
+          const key = await unwrapGroupKey(row.wrapped_key, myKeyPair.privateKey, JSON.parse(myPubRow.public_key_jwk))
+          return key
+        } catch { return null }
+      } else {
+        // Unwrap using shared secret with creator
+        const creatorPubRes = await fetch(`/api/messages/keys?profileId=${creatorId}`)
+        const creatorPubRow = await creatorPubRes.json()
+        if (!creatorPubRow?.public_key_jwk) return null
+        try {
+          const key = await unwrapGroupKey(row.wrapped_key, myKeyPair.privateKey, JSON.parse(creatorPubRow.public_key_jwk))
+          return key
+        } catch { return null }
+      }
+    }
+
+    // No key yet — I'll create it and distribute to all members who have public keys
+    setGroupStatus('setup')
+    const groupKey = await generateGroupKey()
+
+    // Fetch all members' public keys
+    const wrappedKeys: { profileId: string; wrappedKey: string }[] = []
+    for (const profile of allProfiles) {
+      const pkRes = await fetch(`/api/messages/keys?profileId=${profile.id}`)
+      const pkRow = await pkRes.json()
+      if (!pkRow?.public_key_jwk) continue
+      const theirPub = JSON.parse(pkRow.public_key_jwk)
+      const wrapped = await wrapGroupKey(groupKey, myKeyPair.privateKey, theirPub)
+      wrappedKeys.push({ profileId: profile.id, wrappedKey: wrapped })
+    }
+
+    // Also wrap for myself (using my own public key as "their" key)
+    const myPubRes = await fetch(`/api/messages/keys?profileId=${myId}`)
+    const myPubRow = await myPubRes.json()
+    if (myPubRow?.public_key_jwk) {
+      const wrapped = await wrapGroupKey(groupKey, myKeyPair.privateKey, JSON.parse(myPubRow.public_key_jwk))
+      wrappedKeys.push({ profileId: myId, wrappedKey: wrapped })
+    }
+
+    if (wrappedKeys.length > 0) {
+      await fetch('/api/messages/group-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ householdId: hid, createdBy: myId, wrappedKeys }),
+      })
+    }
+
+    return groupKey
   }
 
   async function openChat(target: ChatTarget) {
     if (pollRef.current) clearInterval(pollRef.current)
     setChat(target)
-    chatRef.current = target
     setMessages([])
     setTheirKeyMissing(false)
+    setGroupStatus('waiting')
     lastMsgIdRef.current = null
     theirKeyRef.current = null
+    groupKeyRef.current = null
 
-    if (target !== 'group') {
-      const res = await fetch(`/api/messages/keys?profileId=${target.id}`)
+    if (target === 'group') {
+      const gk = await loadGroupKey(allMembers)
+      groupKeyRef.current = gk
+      setGroupStatus(gk ? 'ok' : 'waiting')
+    } else {
+      const res = await fetch(`/api/messages/keys?profileId=${(target as Profile).id}`)
       const keyRow = await res.json()
-      if (!keyRow?.public_key_jwk) { setTheirKeyMissing(true) }
+      if (!keyRow?.public_key_jwk) setTheirKeyMissing(true)
       else theirKeyRef.current = JSON.parse(keyRow.public_key_jwk)
     }
 
@@ -109,26 +184,34 @@ export default function MessagesPage() {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }
 
+  const decryptOne = useCallback(async (msg: RawMessage, target: ChatTarget): Promise<Message> => {
+    const { name, color, avatar } = senderInfo(msg.from_profile_id)
+    if (target === 'group') {
+      const gk = groupKeyRef.current
+      if (!gk) return { ...msg, plain: '🔒', senderName: name, senderColor: color, senderAvatar: avatar }
+      try {
+        const plain = await decryptWithGroupKey(msg.encrypted_content, gk)
+        return { ...msg, plain, senderName: name, senderColor: color, senderAvatar: avatar }
+      } catch { return { ...msg, plain: '🔒', senderName: name, senderColor: color, senderAvatar: avatar } }
+    }
+    const theirKey = theirKeyRef.current
+    if (!theirKey || !keyPairRef.current) return { ...msg, plain: '🔒' }
+    try {
+      const plain = await decryptMessage(msg.encrypted_content, keyPairRef.current.privateKey, theirKey)
+      return { ...msg, plain }
+    } catch { return { ...msg, plain: '🔒' } }
+  }, [allMembers])
+
   async function loadMessages(target: ChatTarget) {
     const myId = myProfileIdRef.current
     const hid = householdIdRef.current
     const url = target === 'group'
       ? `/api/messages?householdId=${hid}`
-      : `/api/messages?householdId=${hid}&from=${myId}&to=${target.id}`
+      : `/api/messages?householdId=${hid}&from=${myId}&to=${(target as Profile).id}`
     const res = await fetch(url)
     const msgs: RawMessage[] = await res.json()
     if (!Array.isArray(msgs)) return
-
-    const decoded = await Promise.all(msgs.map(async m => {
-      if (target === 'group') {
-        const { name, color, avatar } = senderInfo(m)
-        return { ...m, plain: m.encrypted_content, senderName: name, senderColor: color, senderAvatar: avatar }
-      }
-      const theirKey = theirKeyRef.current
-      if (!theirKey) return { ...m, plain: '🔒' }
-      const plain = await decryptMsg(m, theirKey)
-      return { ...m, plain }
-    }))
+    const decoded = await Promise.all(msgs.map(m => decryptOne(m, target)))
     setMessages(decoded)
     if (decoded.length > 0) lastMsgIdRef.current = decoded[decoded.length - 1].id
   }
@@ -138,27 +221,15 @@ export default function MessagesPage() {
     const hid = householdIdRef.current
     const url = target === 'group'
       ? `/api/messages?householdId=${hid}`
-      : `/api/messages?householdId=${hid}&from=${myId}&to=${typeof target === 'string' ? '' : target.id}`
+      : `/api/messages?householdId=${hid}&from=${myId}&to=${(target as Profile).id}`
     const res = await fetch(url)
     const msgs: RawMessage[] = await res.json()
     if (!Array.isArray(msgs) || msgs.length === 0) return
-
     const lastId = lastMsgIdRef.current
     const lastIdx = lastId ? msgs.findIndex(m => m.id === lastId) : -1
     const newRaw = lastIdx >= 0 ? msgs.slice(lastIdx + 1) : []
     if (newRaw.length === 0) return
-
-    const decoded = await Promise.all(newRaw.map(async m => {
-      if (target === 'group') {
-        const { name, color, avatar } = senderInfo(m)
-        return { ...m, plain: m.encrypted_content, senderName: name, senderColor: color, senderAvatar: avatar }
-      }
-      const theirKey = theirKeyRef.current
-      if (!theirKey) return { ...m, plain: '🔒' }
-      const plain = await decryptMsg(m, theirKey)
-      return { ...m, plain }
-    }))
-
+    const decoded = await Promise.all(newRaw.map(m => decryptOne(m, target)))
     setMessages(prev => [...prev, ...decoded])
     lastMsgIdRef.current = decoded[decoded.length - 1].id
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
@@ -168,12 +239,15 @@ export default function MessagesPage() {
     e.preventDefault()
     if (!text.trim()) return
     const isGroup = chat === 'group'
+    if (isGroup && !groupKeyRef.current) return
     if (!isGroup && (!keyPairRef.current || !theirKeyRef.current)) return
     setSending(true)
     try {
-      let content = text.trim()
+      let content: string
       let toProfileId: string | null = null
-      if (!isGroup && chat !== 'group') {
+      if (isGroup) {
+        content = await encryptWithGroupKey(text.trim(), groupKeyRef.current!)
+      } else {
         content = await encryptMessage(text.trim(), keyPairRef.current!.privateKey, theirKeyRef.current!)
         toProfileId = (chat as Profile).id
       }
@@ -184,9 +258,8 @@ export default function MessagesPage() {
       })
       if (res.ok) {
         const msg: RawMessage = await res.json()
-        const plain = text.trim()
-        const { name, color, avatar } = senderInfo({ ...msg, from_profile_id: myProfileId })
-        setMessages(prev => [...prev, { ...msg, plain, senderName: name, senderColor: color, senderAvatar: avatar }])
+        const { name, color, avatar } = senderInfo(myProfileId)
+        setMessages(prev => [...prev, { ...msg, plain: text.trim(), senderName: name, senderColor: color, senderAvatar: avatar }])
         lastMsgIdRef.current = msg.id
         setText('')
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
@@ -198,9 +271,9 @@ export default function MessagesPage() {
   function back() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
     setChat(null)
-    chatRef.current = null
     setMessages([])
     theirKeyRef.current = null
+    groupKeyRef.current = null
   }
 
   if (loading) return (
@@ -213,11 +286,10 @@ export default function MessagesPage() {
   if (chat !== null) {
     const isGroup = chat === 'group'
     const chatProfile = isGroup ? null : chat as Profile
-    const canSend = isGroup || !!theirKeyRef.current
+    const canSend = isGroup ? groupStatus === 'ok' : !!theirKeyRef.current
 
     return (
       <div className="flex flex-col h-[calc(100dvh-8rem)] animate-slide-up">
-        {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[#252535] flex-shrink-0">
           <button onClick={back} className="text-[#7070a0] hover:text-[#f0f0f8] transition-colors mr-1">←</button>
           {isGroup ? (
@@ -231,16 +303,20 @@ export default function MessagesPage() {
           )}
           <div>
             <p className="text-sm font-bold text-[#f0f0f8]">{isGroup ? 'Groupe Zion' : chatProfile!.display_name}</p>
-            <p className="text-[10px] text-[#7070a0]">{isGroup ? `${allMembers.length} membres` : '🔒 Chiffré bout en bout'}</p>
+            <p className="text-[10px] text-green-400">🔒 Chiffré bout en bout</p>
           </div>
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 min-h-0">
-          {messages.length === 0 && (
+          {messages.length === 0 && !sending && (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
               <p className="text-4xl">{isGroup ? '👥' : '💬'}</p>
-              <p className="text-sm text-[#7070a0]">{isGroup ? 'Début du groupe' : 'Début de la conversation'}</p>
+              {groupStatus === 'setup' && isGroup
+                ? <p className="text-sm text-[#7070a0]">Génération de la clé de groupe…</p>
+                : groupStatus === 'waiting' && isGroup
+                ? <p className="text-sm text-yellow-400">En attente que quelqu'un crée la clé de groupe…</p>
+                : <p className="text-sm text-[#7070a0]">Début {isGroup ? 'du groupe' : 'de la conversation'}</p>
+              }
               {theirKeyMissing && !isGroup && (
                 <p className="text-xs text-yellow-400 mt-1 max-w-[240px]">
                   ⚠️ {chatProfile!.display_name} doit ouvrir Messages une fois pour activer le chiffrement.
@@ -252,17 +328,15 @@ export default function MessagesPage() {
             const isMine = msg.from_profile_id === myProfileId
             const time = new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
             const showName = isGroup && !isMine && (i === 0 || messages[i - 1].from_profile_id !== msg.from_profile_id)
+            const isLast = i === messages.length - 1 || messages[i + 1].from_profile_id !== msg.from_profile_id
             return (
               <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                {showName && (
-                  <p className="text-[10px] text-[#7070a0] mb-0.5 ml-1">{msg.senderName}</p>
-                )}
+                {showName && <p className="text-[10px] text-[#7070a0] mb-0.5 ml-10">{msg.senderName}</p>}
                 <div className={`flex items-end gap-2 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {isGroup && !isMine && (i === messages.length - 1 || messages[i + 1].from_profile_id !== msg.from_profile_id) && (
-                    <Avatar name={msg.senderName ?? '?'} color={msg.senderColor ?? '#555'} avatarUrl={msg.senderAvatar} size="sm" className="flex-shrink-0 mb-0.5" />
-                  )}
-                  {isGroup && !isMine && !(i === messages.length - 1 || messages[i + 1].from_profile_id !== msg.from_profile_id) && (
-                    <div className="w-8 flex-shrink-0" />
+                  {isGroup && !isMine && (
+                    isLast
+                      ? <Avatar name={msg.senderName ?? '?'} color={msg.senderColor ?? '#555'} avatarUrl={msg.senderAvatar} size="sm" className="flex-shrink-0 mb-0.5" />
+                      : <div className="w-8 flex-shrink-0" />
                   )}
                   <div className={`max-w-[78%] px-3.5 py-2 rounded-2xl ${isMine ? 'bg-red-500 text-white rounded-br-md' : 'bg-[#1e1e2e] border border-[#2e2e3e] text-[#f0f0f8] rounded-bl-md'}`}>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.plain}</p>
@@ -275,16 +349,17 @@ export default function MessagesPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
         <form onSubmit={sendMessage} className="flex items-center gap-2 px-4 py-3 border-t border-[#252535] flex-shrink-0">
-          {theirKeyMissing && !isGroup ? (
-            <p className="text-xs text-yellow-400 flex-1 text-center">En attente que {chatProfile!.display_name} active la messagerie…</p>
+          {!canSend ? (
+            <p className="text-xs text-yellow-400 flex-1 text-center py-1">
+              {isGroup ? 'Chargement de la clé de groupe…' : `En attente que ${chatProfile!.display_name} active la messagerie…`}
+            </p>
           ) : (
             <>
               <input
                 value={text}
                 onChange={e => setText(e.target.value)}
-                placeholder={isGroup ? 'Message au groupe…' : 'Message chiffré…'}
+                placeholder="Message chiffré…"
                 className="flex-1 bg-[#1a1a24] border border-[#2e2e3e] rounded-full px-4 py-2.5 text-sm text-[#f0f0f8] placeholder-[#555570] outline-none focus:border-red-500 transition-colors"
                 autoComplete="off"
               />
@@ -304,15 +379,14 @@ export default function MessagesPage() {
     )
   }
 
-  // ── Conversations list ──
+  // ── List ──
   return (
     <div className="p-4 flex flex-col gap-3 animate-slide-up">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg font-black text-[#f0f0f8]">Messages</h2>
-        <p className="text-xs text-[#7070a0]">🔒 DMs chiffrés</p>
+        <p className="text-xs text-green-400">🔒 E2E chiffré</p>
       </div>
 
-      {/* Group */}
       <button
         onClick={() => openChat('group')}
         className="flex items-center gap-3 bg-gradient-to-r from-red-500/10 to-red-400/5 border border-red-500/20 rounded-2xl px-4 py-3.5 text-left hover:border-red-500/40 transition-colors active:scale-[0.98]"
@@ -324,14 +398,11 @@ export default function MessagesPage() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-[#f0f0f8]">Groupe Zion</p>
-          <p className="text-xs text-[#7070a0] mt-0.5">Tout le monde · {allMembers.length} membres</p>
+          <p className="text-xs text-[#7070a0] mt-0.5">🔒 {allMembers.length} membres · chiffré</p>
         </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#44445a] flex-shrink-0">
-          <path d="M9 18l6-6-6-6"/>
-        </svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#44445a] flex-shrink-0"><path d="M9 18l6-6-6-6"/></svg>
       </button>
 
-      {/* DMs */}
       {members.length > 0 && (
         <>
           <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest px-1 mt-1">Messages privés</p>
@@ -347,9 +418,7 @@ export default function MessagesPage() {
                   <p className="text-sm font-semibold text-[#f0f0f8]">{profile.display_name}</p>
                   <p className="text-xs text-[#555570] mt-0.5">🔒 Chiffré bout en bout</p>
                 </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#44445a] flex-shrink-0">
-                  <path d="M9 18l6-6-6-6"/>
-                </svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#44445a] flex-shrink-0"><path d="M9 18l6-6-6-6"/></svg>
               </button>
             ))}
           </div>

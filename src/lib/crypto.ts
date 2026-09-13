@@ -52,21 +52,56 @@ async function deriveSharedKey(myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonW
   )
 }
 
-export async function encryptMessage(text: string, myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonWebKey): Promise<string> {
-  const sharedKey = await deriveSharedKey(myPrivateKey, theirPublicKeyJwk)
+async function encryptBytes(key: CryptoKey, data: Uint8Array): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, sharedKey, new TextEncoder().encode(text))
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data)
   const combined = new Uint8Array(iv.length + ciphertext.byteLength)
   combined.set(iv, 0)
   combined.set(new Uint8Array(ciphertext), iv.length)
   return btoa(String.fromCharCode(...combined))
 }
 
-export async function decryptMessage(encrypted: string, myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonWebKey): Promise<string> {
+async function decryptBytes(key: CryptoKey, encrypted: string): Promise<Uint8Array> {
   const combined = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0))
   const iv = combined.slice(0, 12)
   const ciphertext = combined.slice(12)
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)
+  return new Uint8Array(plain)
+}
+
+export async function encryptMessage(text: string, myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonWebKey): Promise<string> {
   const sharedKey = await deriveSharedKey(myPrivateKey, theirPublicKeyJwk)
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ciphertext)
+  return encryptBytes(sharedKey, new TextEncoder().encode(text))
+}
+
+export async function decryptMessage(encrypted: string, myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonWebKey): Promise<string> {
+  const sharedKey = await deriveSharedKey(myPrivateKey, theirPublicKeyJwk)
+  const plain = await decryptBytes(sharedKey, encrypted)
+  return new TextDecoder().decode(plain)
+}
+
+// Group key — AES-GCM symmetric key shared by all members
+export async function generateGroupKey(): Promise<CryptoKey> {
+  return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
+}
+
+export async function wrapGroupKey(groupKey: CryptoKey, myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonWebKey): Promise<string> {
+  const sharedKey = await deriveSharedKey(myPrivateKey, theirPublicKeyJwk)
+  const raw = await crypto.subtle.exportKey('raw', groupKey)
+  return encryptBytes(sharedKey, new Uint8Array(raw))
+}
+
+export async function unwrapGroupKey(wrapped: string, myPrivateKey: CryptoKey, theirPublicKeyJwk: JsonWebKey): Promise<CryptoKey> {
+  const sharedKey = await deriveSharedKey(myPrivateKey, theirPublicKeyJwk)
+  const raw = await decryptBytes(sharedKey, wrapped)
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+}
+
+export async function encryptWithGroupKey(text: string, groupKey: CryptoKey): Promise<string> {
+  return encryptBytes(groupKey, new TextEncoder().encode(text))
+}
+
+export async function decryptWithGroupKey(encrypted: string, groupKey: CryptoKey): Promise<string> {
+  const plain = await decryptBytes(groupKey, encrypted)
   return new TextDecoder().decode(plain)
 }
