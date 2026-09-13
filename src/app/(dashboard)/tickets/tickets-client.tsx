@@ -34,12 +34,19 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   const [loading, setLoading] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'mine'>('all')
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [editTicket, setEditTicket] = useState<Ticket | null>(null)
 
-  // Form state
+  // Create form state
   const [title, setTitle] = useState('')
   const [assignedTo, setAssignedTo] = useState('')
   const [note, setNote] = useState('')
   const [points, setPoints] = useState('10')
+
+  // Edit form state
+  const [editTitle, setEditTitle] = useState('')
+  const [editAssignedTo, setEditAssignedTo] = useState('')
+  const [editNote, setEditNote] = useState('')
+  const [editPoints, setEditPoints] = useState('0')
 
   const displayTickets = filter === 'mine' ? tickets.filter((t) => t.assigned_to === profileId) : tickets
 
@@ -73,6 +80,27 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
     const res = await fetch(`/api/tickets/${ticketId}`, { method: 'DELETE' })
     if (res.ok) setTickets((prev) => prev.filter((t) => t.id !== ticketId))
     setConfirmDelete(null)
+    setLoading(null)
+  }
+
+  function openEdit(ticket: Ticket) {
+    setEditTicket(ticket)
+    setEditTitle(ticket.title)
+    setEditAssignedTo(ticket.assigned_to ?? '')
+    setEditNote(ticket.note ?? '')
+    setEditPoints(String(ticket.points ?? 0))
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editTicket) return
+    setLoading('edit')
+    const update = { title: editTitle.trim(), assigned_to: editAssignedTo || null, note: editNote || null, points: parseInt(editPoints) || 0 }
+    const { error } = await supabase.from('tickets').update(update).eq('id', editTicket.id)
+    if (!error) {
+      setTickets((prev) => prev.map((t) => t.id === editTicket.id ? { ...t, ...update } : t))
+      setEditTicket(null)
+    }
     setLoading(null)
   }
 
@@ -127,14 +155,17 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                       {ticket.points > 0 && <p className="text-xs font-bold text-yellow-400 mt-0.5">+{ticket.points} pts</p>}
                     </div>
                     <Badge variant={STATUS_BADGE[ticket.status]}>{STATUS_LABELS[ticket.status]}</Badge>
-                    {confirmDelete === ticket.id ? (
-                      <div className="flex gap-1">
-                        <button onClick={() => deleteTicket(ticket.id)} className="text-xs text-red-400 font-semibold px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20">Oui</button>
-                        <button onClick={() => setConfirmDelete(null)} className="text-xs text-[#7070a0] px-2 py-1 rounded-lg hover:bg-[#2e2e3e]">Non</button>
-                      </div>
-                    ) : ticket.created_by === profileId ? (
-                      <button onClick={() => setConfirmDelete(ticket.id)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#44445a] hover:text-red-400 active:text-red-400 hover:bg-red-500/10 active:bg-red-500/10 transition-all flex-shrink-0">✕</button>
-                    ) : null}
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button onClick={() => openEdit(ticket)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#7070a0] hover:text-blue-400 hover:bg-blue-500/10 transition-all text-xs">✏️</button>
+                      {confirmDelete === ticket.id ? (
+                        <>
+                          <button onClick={() => deleteTicket(ticket.id)} className="text-xs text-red-400 font-semibold px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20">Oui</button>
+                          <button onClick={() => setConfirmDelete(null)} className="text-xs text-[#7070a0] px-2 py-1 rounded-lg hover:bg-[#2e2e3e]">Non</button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConfirmDelete(ticket.id)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#7070a0] hover:text-red-400 hover:bg-red-500/10 transition-all">✕</button>
+                      )}
+                    </div>
                   </div>
                   {ticket.assignee && (
                     <div className="flex items-center gap-2 mb-2">
@@ -183,6 +214,28 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
           </div>
         )
       })}
+
+      {/* Edit sheet */}
+      {editTicket && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setEditTicket(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()} onSubmit={saveEdit}>
+            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+            <h3 className="text-base font-bold text-[#f0f0f5]">Modifier le ticket</h3>
+            <Input label="Titre" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+            <div>
+              <p className="text-sm font-medium text-[#8888a0] mb-1.5">Assigner à</p>
+              <select value={editAssignedTo} onChange={(e) => setEditAssignedTo(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-red-500">
+                <option value="">Personne (à prendre)</option>
+                {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
+              </select>
+            </div>
+            <Input label="Note (optionnel)" value={editNote} onChange={(e) => setEditNote(e.target.value)} />
+            <Input label="Points à attribuer" type="number" min="0" max="500" value={editPoints} onChange={(e) => setEditPoints(e.target.value)} />
+            <Button type="submit" loading={loading === 'edit'} className="w-full">Sauvegarder</Button>
+          </form>
+        </div>
+      )}
 
       {/* Create sheet */}
       {showCreate && (
