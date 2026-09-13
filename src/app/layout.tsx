@@ -45,7 +45,15 @@ function ServiceWorkerRegistration() {
       id="sw-register"
       strategy="afterInteractive"
       dangerouslySetInnerHTML={{
-        __html: `if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(function(){});`,
+        __html: `
+if('serviceWorker'in navigator){
+  navigator.serviceWorker.register('/sw.js').then(function(reg){
+    reg.update();
+  }).catch(function(){});
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    window.location.reload();
+  });
+}`,
       }}
     />
   )
