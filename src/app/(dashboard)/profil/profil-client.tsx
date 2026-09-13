@@ -204,35 +204,55 @@ function NotificationToggle({ profileId, householdId }: { profileId: string; hou
   }
 
   return (
-    <Card>
-      <h3 className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Notifications</h3>
-      {status === 'denied' ? (
-        <p className="text-xs text-[#555570]">Notifications bloquées dans les paramètres du navigateur.</p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-[#f0f0f8]">Alertes push</p>
-              <p className="text-xs text-[#7070a0] mt-0.5">
-                {status === 'on' ? 'Activées' : 'Reçois une alerte quand tes colocs agissent'}
-              </p>
+    <>
+      <Card>
+        <h3 className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Notifications</h3>
+        {status === 'denied' ? (
+          <p className="text-xs text-[#555570]">Notifications bloquées dans les paramètres du navigateur.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-[#f0f0f8]">Alertes push</p>
+                <p className="text-xs text-[#7070a0] mt-0.5">
+                  {status === 'on' ? 'Activées' : 'Reçois une alerte quand tes colocs agissent'}
+                </p>
+              </div>
+              <button
+                onClick={status === 'on' ? disable : enable}
+                disabled={busy || status === 'loading'}
+                className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${status === 'on' ? 'bg-red-500' : 'bg-[#2e2e3e]'}`}
+              >
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${status === 'on' ? 'left-7' : 'left-1'}`} />
+              </button>
             </div>
-            <button
-              onClick={status === 'on' ? disable : enable}
-              disabled={busy || status === 'loading'}
-              className={`relative w-12 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${status === 'on' ? 'bg-red-500' : 'bg-[#2e2e3e]'}`}
-            >
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${status === 'on' ? 'left-7' : 'left-1'}`} />
-            </button>
+            {status === 'on' && (
+              <button onClick={testNotif} disabled={busy} className="text-xs text-[#7070a0] hover:text-red-400 transition-colors text-left">
+                Tester la notification →
+              </button>
+            )}
           </div>
-          {status === 'on' && (
-            <button onClick={testNotif} disabled={busy} className="text-xs text-[#7070a0] hover:text-red-400 transition-colors text-left">
-              Tester la notification →
-            </button>
-          )}
-        </div>
-      )}
-    </Card>
+        )}
+      </Card>
+
+      <Card>
+        <h3 className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Application</h3>
+        <button
+          onClick={async () => {
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations()
+              for (const reg of regs) await reg.unregister()
+            }
+            const keys = await caches.keys()
+            await Promise.all(keys.map(k => caches.delete(k)))
+            window.location.reload()
+          }}
+          className="text-xs text-[#7070a0] hover:text-red-400 transition-colors text-left"
+        >
+          Vider le cache et recharger →
+        </button>
+      </Card>
+    </>
   )
 }
 
