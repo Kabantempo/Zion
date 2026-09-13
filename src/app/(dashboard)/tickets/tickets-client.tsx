@@ -169,7 +169,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                   </div>
                   {ticket.assignee && (
                     <div className="flex items-center gap-2 mb-2">
-                      <Avatar name={(ticket.assignee as Profile).display_name} color={(ticket.assignee as Profile).color} size="sm" />
+                      <Avatar name={(ticket.assignee as Profile).display_name} color={(ticket.assignee as Profile).color} avatarUrl={(ticket.assignee as Profile).avatar_url} size="sm" />
                       <span className="text-xs text-[#8888a0]">{(ticket.assignee as Profile).display_name}</span>
                     </div>
                   )}
