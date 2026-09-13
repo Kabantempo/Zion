@@ -1,263 +1,203 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import { createPortal } from 'react-dom'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
 import { Card } from '@/components/ui/card'
 import { Avatar } from '@/components/ui/avatar'
 
-const ACHIEVEMENTS = [
-  { key: 'first_task', icon: '🌱', label: 'Premier pas', description: 'Réaliser ta 1ère tâche' },
-  { key: 'ten_tasks', icon: '💪', label: 'Bras musclé', description: '10 tâches réalisées' },
-  { key: 'fifty_tasks', icon: '🧹', label: 'Machine à laver', description: '50 tâches réalisées' },
-  { key: 'hundred_tasks', icon: '🏆', label: 'Centurion', description: '100 tâches réalisées' },
-  { key: 'streak_3', icon: '🔥', label: 'En feu', description: 'Streak de 3 jours' },
-  { key: 'streak_7', icon: '🌋', label: 'Série de feu', description: 'Streak de 7 jours' },
-  { key: 'streak_30', icon: '⚡', label: 'Indestructible', description: 'Streak de 30 jours' },
-  { key: 'savior', icon: '🦸', label: 'Sauveur', description: 'Prendre un ticket non assigné' },
-  { key: 'cyberpsycho', icon: '🤖', label: 'Cyberpsycho', description: 'Terminer 10 tickets' },
-  { key: 'points_500', icon: '💰', label: 'Riche en mérites', description: 'Cumuler 500 points' },
-  { key: 'points_2000', icon: '💎', label: 'Diamant', description: 'Cumuler 2000 points' },
-  { key: 'all_categories', icon: '🎨', label: 'Polyvalent', description: 'Tâches dans 5 catégories' },
-  { key: 'dead_god', icon: '💀', label: 'Dead God', description: 'Faire toutes les tâches au moins une fois' },
+interface Achievement {
+  id: string
+  emoji: string
+  label: string
+  desc: string
+  tier: 'bronze' | 'silver' | 'gold' | 'diamond'
+  check: (stats: MemberStats) => boolean
+}
+
+interface MemberStats {
+  totalTasks: number
+  totalPoints: number
+  maxStreak: number
+  uniqueCategories: number
+  totalCategories: number
+  ticketsCompleted: number
+}
+
+const ACHIEVEMENTS: Achievement[] = [
+  // Tâches
+  { id: 'first_task',   emoji: '🌱', label: 'Premier pas',      desc: '1 tâche complétée',      tier: 'bronze',  check: s => s.totalTasks >= 1 },
+  { id: 'tasks_10',     emoji: '⚡', label: 'En route',         desc: '10 tâches complétées',   tier: 'bronze',  check: s => s.totalTasks >= 10 },
+  { id: 'tasks_50',     emoji: '🔥', label: 'En feu',           desc: '50 tâches complétées',   tier: 'silver',  check: s => s.totalTasks >= 50 },
+  { id: 'tasks_100',    emoji: '💪', label: 'Centurion',        desc: '100 tâches complétées',  tier: 'silver',  check: s => s.totalTasks >= 100 },
+  { id: 'tasks_250',    emoji: '🏅', label: 'Bosseur',          desc: '250 tâches complétées',  tier: 'gold',    check: s => s.totalTasks >= 250 },
+  { id: 'tasks_500',    emoji: '🏆', label: 'Légende',          desc: '500 tâches complétées',  tier: 'diamond', check: s => s.totalTasks >= 500 },
+  // Points
+  { id: 'pts_100',      emoji: '💰', label: 'Premiers euros',   desc: '100 pts gagnés',         tier: 'bronze',  check: s => s.totalPoints >= 100 },
+  { id: 'pts_500',      emoji: '💎', label: 'Riche',            desc: '500 pts gagnés',         tier: 'silver',  check: s => s.totalPoints >= 500 },
+  { id: 'pts_1000',     emoji: '👑', label: 'Millionnaire',     desc: '1 000 pts gagnés',       tier: 'gold',    check: s => s.totalPoints >= 1000 },
+  { id: 'pts_5000',     emoji: '🌟', label: 'Intouchable',      desc: '5 000 pts gagnés',       tier: 'diamond', check: s => s.totalPoints >= 5000 },
+  // Streak
+  { id: 'streak_3',     emoji: '📅', label: 'Régulier',         desc: '3 jours de suite',       tier: 'bronze',  check: s => s.maxStreak >= 3 },
+  { id: 'streak_7',     emoji: '🗓️', label: 'Semaine parfaite', desc: '7 jours de suite',       tier: 'silver',  check: s => s.maxStreak >= 7 },
+  { id: 'streak_14',    emoji: '🌙', label: 'Deux semaines',    desc: '14 jours de suite',      tier: 'gold',    check: s => s.maxStreak >= 14 },
+  { id: 'streak_30',    emoji: '🔮', label: 'Mois de feu',      desc: '30 jours de suite',      tier: 'diamond', check: s => s.maxStreak >= 30 },
+  // Diversité
+  { id: 'all_cats',     emoji: '🗂️', label: 'Touche-à-tout',   desc: 'Toutes les catégories',  tier: 'silver',  check: s => s.totalCategories > 0 && s.uniqueCategories >= s.totalCategories },
+  // Tickets
+  { id: 'ticket_1',     emoji: '🎫', label: 'Service rendu',    desc: '1 ticket complété',      tier: 'bronze',  check: s => s.ticketsCompleted >= 1 },
+  { id: 'ticket_10',    emoji: '🛠️', label: 'Handyman',         desc: '10 tickets complétés',   tier: 'gold',    check: s => s.ticketsCompleted >= 10 },
 ]
 
-interface MemberProfile {
-  profileId: string
-  displayName: string
-  color: string
-  avatarUrl: string | null
+const TIER_COLOR: Record<string, string> = {
+  bronze:  'from-orange-900/40 to-orange-800/20 border-orange-700/30',
+  silver:  'from-slate-700/40 to-slate-600/20 border-slate-500/30',
+  gold:    'from-yellow-900/40 to-yellow-800/20 border-yellow-600/30',
+  diamond: 'from-cyan-900/40 to-blue-900/20 border-cyan-500/30',
 }
 
-interface Stats {
-  taskCount: number
-  totalPoints: number
-  saviorCount: number
-  streak: number
-  categoriesDone: Set<string>
-  uniqueTasksDone: number
-  totalTaskTypes: number
+const TIER_LABEL_COLOR: Record<string, string> = {
+  bronze:  'text-orange-400',
+  silver:  'text-slate-300',
+  gold:    'text-yellow-400',
+  diamond: 'text-cyan-400',
 }
 
-function computeUnlocked(stats: Stats) {
-  const { taskCount, totalPoints, saviorCount, streak, categoriesDone, uniqueTasksDone, totalTaskTypes } = stats
-  const checks: Record<string, boolean> = {
-    first_task: taskCount >= 1,
-    ten_tasks: taskCount >= 10,
-    fifty_tasks: taskCount >= 50,
-    hundred_tasks: taskCount >= 100,
-    streak_3: streak >= 3,
-    streak_7: streak >= 7,
-    streak_30: streak >= 30,
-    savior: saviorCount >= 1,
-    cyberpsycho: saviorCount >= 10,
-    points_500: totalPoints >= 500,
-    points_2000: totalPoints >= 2000,
-    all_categories: categoriesDone.size >= 5,
-    dead_god: totalTaskTypes > 0 && uniqueTasksDone >= totalTaskTypes,
+function computeStats(logs: any[], ticketLogs: any[], totalCategories: number): MemberStats {
+  const totalTasks = logs.length
+  const totalPoints = logs.reduce((s: number, l: any) => s + (l.points_awarded || 0), 0)
+
+  // Max streak
+  const days = new Set(logs.map((l: any) => new Date(l.done_at).toDateString()))
+  let maxStreak = 0, cur = 0
+  const today = new Date()
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today.getTime() - i * 86400000).toDateString()
+    if (days.has(d)) { cur++; maxStreak = Math.max(maxStreak, cur) } else cur = 0
   }
-  return checks
-}
 
-function getProgress(key: string, stats: Stats): number {
-  const { taskCount, totalPoints, streak, categoriesDone, saviorCount, uniqueTasksDone, totalTaskTypes } = stats
-  switch (key) {
-    case 'first_task': return Math.min(100, taskCount * 100)
-    case 'ten_tasks': return Math.min(100, (taskCount / 10) * 100)
-    case 'fifty_tasks': return Math.min(100, (taskCount / 50) * 100)
-    case 'hundred_tasks': return Math.min(100, (taskCount / 100) * 100)
-    case 'streak_3': return Math.min(100, (streak / 3) * 100)
-    case 'streak_7': return Math.min(100, (streak / 7) * 100)
-    case 'streak_30': return Math.min(100, (streak / 30) * 100)
-    case 'points_500': return Math.min(100, (totalPoints / 500) * 100)
-    case 'points_2000': return Math.min(100, (totalPoints / 2000) * 100)
-    case 'all_categories': return Math.min(100, (categoriesDone.size / 5) * 100)
-    case 'cyberpsycho': return Math.min(100, (saviorCount / 10) * 100)
-    case 'dead_god': return totalTaskTypes > 0 ? Math.min(100, (uniqueTasksDone / totalTaskTypes) * 100) : 0
-    default: return 0
-  }
+  // Categories
+  const uniqueCategories = new Set(logs.map((l: any) => l.task_type?.category).filter(Boolean)).size
+
+  return { totalTasks, totalPoints, maxStreak, uniqueCategories, totalCategories, ticketsCompleted: ticketLogs.length }
 }
 
 export default function SuccesPage() {
   const router = useRouter()
-  const pathname = usePathname()
   const supabase = createClient()
-  const [members, setMembers] = useState<MemberProfile[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [statsMap, setStatsMap] = useState<Record<string, Stats>>({})
+  const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [myProfileId, setMyProfileId] = useState<string | null>(null)
-  const [newAchievement, setNewAchievement] = useState<{ icon: string; label: string } | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
     const session = getProfileSession()
     if (!session) { router.replace('/profiles'); return }
-    setMyProfileId(session.profileId)
-    setSelectedId(session.profileId)
-    loadAll(session.profileId, session.householdId)
-  }, [pathname])
+    load(session.profileId, session.householdId)
+  }, [])
 
-  async function loadAll(profileId: string, householdId: string) {
-    const { data: membersData } = await supabase
-      .from('household_members')
-      .select('profile_id, profile:profiles(id, display_name, color, avatar_url)')
-      .eq('household_id', householdId)
+  async function load(profileId: string, householdId: string) {
+    const [{ data: members }, { data: allLogs }, { data: taskTypes }, { data: tickets }] = await Promise.all([
+      supabase.from('household_members').select('profile_id, profile:profiles(id, display_name, color, avatar_url)').eq('household_id', householdId),
+      supabase.from('task_logs').select('done_by, done_at, points_awarded, task_type:task_types(category)').eq('household_id', householdId),
+      supabase.from('task_types').select('category').eq('household_id', householdId),
+      supabase.from('tickets').select('completed_by').eq('household_id', householdId).eq('status', 'done').not('completed_by', 'is', null),
+    ])
 
-    const profiles: MemberProfile[] = (membersData ?? []).map((m: any) => {
+    const cats = new Set((taskTypes ?? []).map((t: any) => t.category)).size
+
+    const memberStats: Record<string, { profile: any; stats: MemberStats; achievements: Achievement[] }> = {}
+    for (const m of members ?? []) {
       const p = Array.isArray(m.profile) ? m.profile[0] : m.profile
-      return { profileId: m.profile_id, displayName: p?.display_name ?? '?', color: p?.color ?? '#555', avatarUrl: p?.avatar_url ?? null }
-    }).filter((m: any) => m.displayName !== '?')
-
-    setMembers(profiles)
-
-    const map: Record<string, Stats> = {}
-    await Promise.all(profiles.map(async (m) => {
-      const [{ data: allTimeLogs }, { data: pointsData }, { data: ticketsDone }, { data: allTaskTypes }] = await Promise.all([
-        supabase.from('task_logs').select('done_at, task_type_id, task_type:task_types(category)').eq('done_by', m.profileId).eq('household_id', householdId).order('done_at'),
-        supabase.from('task_logs').select('points_awarded').eq('done_by', m.profileId).eq('household_id', householdId),
-        supabase.from('tickets').select('id').eq('household_id', householdId).eq('completed_by', m.profileId),
-        supabase.from('task_types').select('id').eq('household_id', householdId),
-      ])
-
-      const taskCount = allTimeLogs?.length ?? 0
-      const totalPoints = (pointsData ?? []).reduce((s: number, l: any) => s + l.points_awarded, 0)
-      const saviorCount = ticketsDone?.length ?? 0
-      const totalTaskTypes = allTaskTypes?.length ?? 0
-      const uniqueTasksDone = new Set((allTimeLogs ?? []).map((l: any) => l.task_type_id).filter(Boolean)).size
-
-      const days = new Set((allTimeLogs ?? []).map((l: any) => new Date(l.done_at).toDateString()))
-      let streak = days.has(new Date().toDateString()) ? 1 : 0
-      let d = new Date(Date.now() - 86400000)
-      while (days.has(d.toDateString())) { streak++; d = new Date(d.getTime() - 86400000) }
-
-      const categoriesDone = new Set((allTimeLogs ?? []).map((l: any) => {
-        const tt = Array.isArray(l.task_type) ? l.task_type[0] : l.task_type
-        return tt?.category
-      }).filter(Boolean))
-
-      map[m.profileId] = { taskCount, totalPoints, saviorCount, streak, categoriesDone, uniqueTasksDone, totalTaskTypes }
-    }))
-
-    setStatsMap(map)
-    setLoading(false)
-
-    // Detect newly unlocked achievements for current user
-    const myStats = map[profileId]
-    if (myStats) {
-      const unlocked = computeUnlocked(myStats)
-      const storageKey = `zion_achievements_${profileId}`
-      let seen: string[] = []
-      try { seen = JSON.parse(localStorage.getItem(storageKey) ?? '[]') } catch {}
-      const newOnes = ACHIEVEMENTS.filter((a) => unlocked[a.key] && !seen.includes(a.key))
-      if (newOnes.length > 0) {
-        const first = newOnes[0]
-        setNewAchievement({ icon: first.icon, label: first.label })
-        const allUnlocked = ACHIEVEMENTS.filter((a) => unlocked[a.key]).map((a) => a.key)
-        try { localStorage.setItem(storageKey, JSON.stringify(allUnlocked)) } catch {}
-        setTimeout(() => setNewAchievement(null), 4000)
-      } else {
-        const allUnlocked = ACHIEVEMENTS.filter((a) => unlocked[a.key]).map((a) => a.key)
-        try { localStorage.setItem(storageKey, JSON.stringify(allUnlocked)) } catch {}
-      }
+      if (!p) continue
+      const myLogs = (allLogs ?? []).filter((l: any) => l.done_by === m.profile_id)
+      const myTickets = (tickets ?? []).filter((t: any) => t.completed_by === m.profile_id)
+      const stats = computeStats(myLogs, myTickets, cats)
+      const earned = ACHIEVEMENTS.filter(a => a.check(stats))
+      memberStats[m.profile_id] = { profile: p, stats, achievements: earned }
     }
+
+    setData({ memberStats, profileId })
+    setLoading(false)
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
+  if (loading || !data) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
 
-  const myStats = myProfileId ? statsMap[myProfileId] : null
-  const myUnlockedCount = myStats ? ACHIEVEMENTS.filter((a) => computeUnlocked(myStats)[a.key]).length : 0
-
-  const unlockedAchievements = ACHIEVEMENTS.filter((a) =>
-    members.some((m) => statsMap[m.profileId] && computeUnlocked(statsMap[m.profileId])[a.key])
-  )
-  const lockedAchievements = ACHIEVEMENTS.filter((a) =>
-    !members.some((m) => statsMap[m.profileId] && computeUnlocked(statsMap[m.profileId])[a.key])
-  )
+  const entries = Object.entries(data.memberStats as Record<string, any>).sort(([, a]: any, [, b]: any) => b.achievements.length - a.achievements.length)
 
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
-      {newAchievement && createPortal(
-        <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
-          <div className="bg-[#1a1a24] border border-yellow-500/40 rounded-3xl p-8 text-center shadow-2xl animate-pop-in mx-6">
-            <div className="text-6xl mb-3 animate-bounce">{newAchievement.icon}</div>
-            <p className="text-xs font-semibold text-yellow-400 uppercase tracking-widest mb-1">Succès débloqué !</p>
-            <p className="text-2xl font-black text-[#f0f0f5]">{newAchievement.label}</p>
-            <div className="mt-4 flex justify-center gap-1">
-              {['✨','🎉','✨'].map((e, i) => <span key={i} className="text-xl animate-bounce" style={{ animationDelay: `${i * 0.15}s` }}>{e}</span>)}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-2xl font-black text-[#f0f0f5]">{myUnlockedCount}<span className="text-[#8888a0] text-base font-normal">/{ACHIEVEMENTS.length}</span></p>
-          <p className="text-xs text-[#7070a0]">mes succès</p>
-        </div>
-        <Link href="/classement" className="text-xs text-[#7070a0] hover:text-red-400 transition-colors flex items-center gap-1">
-          🏆 Classement →
-        </Link>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-lg font-black text-[#f0f0f8]">Succès</h2>
+        <p className="text-xs text-[#7070a0]">{ACHIEVEMENTS.length} badges au total</p>
       </div>
 
-      {unlockedAchievements.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">Débloqués ✨</h3>
-          <div className="flex flex-col gap-2">
-            {unlockedAchievements.map((a) => (
-              <Card key={a.key}>
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl">{a.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-[#f0f0f5]">{a.label}</p>
-                    <p className="text-xs text-[#8888a0]">{a.description}</p>
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    {members.map((m) => {
-                      const has = statsMap[m.profileId] && computeUnlocked(statsMap[m.profileId])[a.key]
-                      return (
-                        <div key={m.profileId} className={`transition-all ${has ? 'opacity-100' : 'opacity-20 grayscale'}`} title={m.displayName}>
-                          <Avatar name={m.displayName} color={m.color} avatarUrl={m.avatarUrl} size="sm" />
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+      {entries.map(([profileId, { profile, stats, achievements }]: any) => {
+        const isMe = profileId === data.profileId
+        const isSelected = selected === profileId
+        const locked = ACHIEVEMENTS.filter(a => !achievements.find((e: any) => e.id === a.id))
 
-      {lockedAchievements.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-[#8888a0] mb-2 px-1">À débloquer</h3>
-          <div className="flex flex-col gap-2">
-            {lockedAchievements.map((a) => {
-              const progress = myStats ? getProgress(a.key, myStats) : 0
-              return (
-                <Card key={a.key} className="opacity-50">
-                  <div className="flex items-center gap-3">
-                    <div className="text-3xl grayscale">{a.icon}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#f0f0f5]">{a.label}</p>
-                      <p className="text-xs text-[#8888a0]">{a.description}</p>
-                      {progress > 0 && (
-                        <div className="mt-1.5 h-1.5 bg-[#2e2e3e] rounded-full overflow-hidden">
-                          <div className="h-full bg-red-500 rounded-full" style={{ width: `${progress}%` }} />
-                        </div>
-                      )}
+        return (
+          <Card key={profileId}>
+            <button className="w-full text-left" onClick={() => setSelected(isSelected ? null : profileId)}>
+              <div className="flex items-center gap-3 mb-3">
+                <Avatar name={profile.display_name} color={profile.color} avatarUrl={profile.avatar_url} size="md" />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-[#f0f0f8]">
+                    {profile.display_name} {isMe && <span className="text-[#7070a0] font-normal text-xs">(moi)</span>}
+                  </p>
+                  <p className="text-xs text-[#7070a0]">{achievements.length} / {ACHIEVEMENTS.length} badges</p>
+                </div>
+                <div className="flex gap-1 flex-wrap justify-end max-w-[120px]">
+                  {achievements.slice(0, 6).map((a: any) => (
+                    <span key={a.id} className="text-base">{a.emoji}</span>
+                  ))}
+                  {achievements.length > 6 && <span className="text-xs text-[#7070a0] font-bold">+{achievements.length - 6}</span>}
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-1.5 bg-[#2e2e3e] rounded-full overflow-hidden mb-1">
+                <div
+                  className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 rounded-full transition-all duration-700"
+                  style={{ width: `${(achievements.length / ACHIEVEMENTS.length) * 100}%` }}
+                />
+              </div>
+            </button>
+
+            {isSelected && (
+              <div className="mt-4 flex flex-col gap-2">
+                <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-1">Obtenus</p>
+                {achievements.length === 0 && <p className="text-xs text-[#555570]">Aucun badge encore — commence à faire des tâches !</p>}
+                <div className="grid grid-cols-2 gap-2">
+                  {achievements.map((a: any) => (
+                    <div key={a.id} className={`bg-gradient-to-br ${TIER_COLOR[a.tier]} border rounded-xl p-3`}>
+                      <p className="text-xl mb-1">{a.emoji}</p>
+                      <p className={`text-xs font-bold ${TIER_LABEL_COLOR[a.tier]}`}>{a.label}</p>
+                      <p className="text-[10px] text-[#7070a0] mt-0.5">{a.desc}</p>
                     </div>
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
-      )}
+                  ))}
+                </div>
+
+                {locked.length > 0 && (
+                  <>
+                    <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mt-2 mb-1">À débloquer</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {locked.map((a: any) => (
+                        <div key={a.id} className="bg-[#1c1c26] border border-[#2e2e3e] rounded-xl p-3 opacity-50">
+                          <p className="text-xl mb-1 grayscale">{a.emoji}</p>
+                          <p className="text-xs font-bold text-[#555570]">{a.label}</p>
+                          <p className="text-[10px] text-[#444458] mt-0.5">{a.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </Card>
+        )
+      })}
     </div>
   )
 }
