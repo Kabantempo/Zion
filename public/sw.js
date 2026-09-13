@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zion-v4'
+const CACHE_NAME = 'zion-v5'
 
 // Only cache static assets — never HTML pages (they reference versioned JS chunks)
 const STATIC_EXTENSIONS = ['.js', '.css', '.png', '.jpg', '.jpeg', '.svg', '.ico', '.woff', '.woff2']
