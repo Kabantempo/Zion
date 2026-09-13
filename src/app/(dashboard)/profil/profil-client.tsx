@@ -394,6 +394,25 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
       {/* Notifications */}
       {household && <NotificationToggle profileId={profileId} householdId={household.id} />}
 
+      {/* Cache */}
+      <Card>
+        <h3 className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Application</h3>
+        <button
+          onClick={async () => {
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations()
+              for (const reg of regs) await reg.unregister()
+            }
+            const keys = await caches.keys()
+            await Promise.all(keys.map(k => caches.delete(k)))
+            window.location.reload()
+          }}
+          className="text-xs text-[#7070a0] hover:text-red-400 transition-colors text-left"
+        >
+          Vider le cache et recharger →
+        </button>
+      </Card>
+
       {/* Logout */}
       <Card>
         <h3 className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Compte</h3>
