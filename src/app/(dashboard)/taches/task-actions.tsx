@@ -15,7 +15,7 @@ interface Props {
   displayName: string
 }
 
-const CATEGORIES = ['Cuisine', 'Sol', 'Salle de bain', 'Poubelles', 'Courses', 'Salon', 'Autre']
+const CATEGORIES = ['Cuisine', 'Sol', 'Salle de bain', 'Toilette', 'Poubelles', 'Courses', 'Salon', 'Autre']
 const FREQUENCIES = [
   { value: 'daily', label: 'Quotidien' },
   { value: 'weekly', label: 'Hebdo' },

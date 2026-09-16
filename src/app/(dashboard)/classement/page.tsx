@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getProfileSession } from '@/lib/profile-session'
@@ -148,6 +149,7 @@ function ClassementContent() {
   const [members, setMembers] = useState<any[]>([])
   const [profileSheet, setProfileSheet] = useState<{ item: any; logs: any[] } | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(false)
+  const [equilSheet, setEquilSheet] = useState<{ memberId: string; points: string; loading: boolean } | null>(null)
 
   useEffect(() => {
     const session = getProfileSession()
@@ -233,6 +235,39 @@ function ClassementContent() {
 
     setData({ sorted, profileId, period, householdId })
     setLoading(false)
+  }
+
+  async function submitEquil() {
+    if (!equilSheet || !data) return
+    setEquilSheet(prev => prev ? { ...prev, loading: true } : null)
+    const pts = parseInt(equilSheet.points)
+    if (isNaN(pts) || pts === 0) { setEquilSheet(prev => prev ? { ...prev, loading: false } : null); return }
+
+    let taskTypeId: string | null = null
+    const { data: existing } = await supabase.from('task_types').select('id').eq('household_id', data.householdId).eq('label', '⚖️ Équilibrage').maybeSingle()
+    if (existing) {
+      taskTypeId = existing.id
+    } else {
+      const { data: created } = await supabase.from('task_types').insert({
+        household_id: data.householdId, label: '⚖️ Équilibrage', category: 'Autre', points: 0, frequency: 'as_needed',
+      }).select('id').single()
+      taskTypeId = created?.id ?? null
+    }
+    if (!taskTypeId) { setEquilSheet(prev => prev ? { ...prev, loading: false } : null); return }
+
+    const { error } = await supabase.from('task_logs').insert({
+      household_id: data.householdId,
+      task_type_id: taskTypeId,
+      done_by: equilSheet.memberId,
+      done_at: new Date().toISOString(),
+      points_awarded: pts,
+    })
+    if (!error) {
+      setEquilSheet(null)
+      load(data.profileId, data.householdId)
+    } else {
+      setEquilSheet(prev => prev ? { ...prev, loading: false } : null)
+    }
   }
 
   async function openProfile(item: any) {
@@ -342,18 +377,69 @@ function ClassementContent() {
 
   return (
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
-      {/* Period tabs */}
-      <div className="flex p-1 bg-[#13131a] rounded-2xl border border-[#252535] overflow-x-auto">
-        {([['week', 'Semaine'], ['month', 'Mois'], ['all', 'All time'], ['history', 'Historique']] as const).map(([p, label]) => (
-          <a
-            key={p}
-            href={`?period=${p}`}
-            className={`flex-shrink-0 flex-1 py-2 text-xs font-semibold rounded-xl transition-all text-center ${period === p ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-[#7070a0] hover:text-[#f0f0f8]'}`}
-          >
-            {label}
-          </a>
-        ))}
+      {/* Period tabs + equil button */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 p-1 bg-[#13131a] rounded-2xl border border-[#252535] overflow-x-auto">
+          {([['week', 'Semaine'], ['month', 'Mois'], ['all', 'All time'], ['history', 'Historique']] as const).map(([p, label]) => (
+            <a
+              key={p}
+              href={`?period=${p}`}
+              className={`flex-shrink-0 flex-1 py-2 text-xs font-semibold rounded-xl transition-all text-center ${period === p ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-[#7070a0] hover:text-[#f0f0f8]'}`}
+            >
+              {label}
+            </a>
+          ))}
+        </div>
+        <button
+          onClick={() => sorted.length > 0 && setEquilSheet({ memberId: sorted[0].userId, points: '10', loading: false })}
+          className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-2xl bg-[#13131a] border border-[#252535] text-base hover:bg-[#1a1a24] active:scale-95 transition-all"
+          title="Équilibrage de points"
+        >⚖️</button>
       </div>
+
+      {/* Equil sheet */}
+      {equilSheet && createPortal(
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setEquilSheet(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-5 pb-10 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+            <h3 className="text-base font-bold text-[#f0f0f5]">⚖️ Équilibrage de points</h3>
+            <div>
+              <p className="text-sm font-medium text-[#8888a0] mb-2">Membre</p>
+              <div className="flex flex-col gap-1.5">
+                {sorted.map((m: any) => (
+                  <button key={m.userId} type="button" onClick={() => setEquilSheet(prev => prev ? { ...prev, memberId: m.userId } : null)}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-left ${equilSheet.memberId === m.userId ? 'bg-red-500/20 border border-red-500/40' : 'bg-[#22222e] border border-transparent'}`}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 overflow-hidden" style={{ backgroundColor: m.color ?? '#555' }}>
+                      {m.avatarUrl ? <img src={m.avatarUrl} className="w-full h-full object-cover" /> : m.userName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-[#f0f0f5] flex-1">{m.userName}</span>
+                    <span className="text-xs text-[#7070a0]">{m.value} pts</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#8888a0] mb-2">Points à ajouter <span className="text-[#555570]">(négatif pour retirer)</span></p>
+              <input
+                type="number"
+                value={equilSheet.points}
+                onChange={(e) => setEquilSheet(prev => prev ? { ...prev, points: e.target.value } : null)}
+                className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] text-lg font-bold outline-none focus:border-red-500 text-center"
+                placeholder="10"
+              />
+            </div>
+            <button
+              onClick={submitEquil}
+              disabled={equilSheet.loading}
+              className="w-full py-3 rounded-xl bg-red-500 text-white font-bold text-sm disabled:opacity-50"
+            >
+              {equilSheet.loading ? '…' : `Appliquer ${parseInt(equilSheet.points) > 0 ? '+' : ''}${equilSheet.points || 0} pts`}
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Evolution chart */}
       {rawLogs.length > 0 && members.length > 0 && (
