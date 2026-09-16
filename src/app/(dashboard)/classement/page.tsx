@@ -231,14 +231,34 @@ function ClassementContent() {
     setProfileSheet({ item, logs: [] })
     const session = getProfileSession()
     if (!session) return
-    const { data: logs } = await supabase
-      .from('task_logs')
-      .select('id, done_at, points_awarded, task_type:task_types(label)')
-      .eq('done_by', item.userId)
-      .eq('household_id', session.householdId)
-      .order('done_at', { ascending: false })
-      .limit(50)
-    setProfileSheet({ item, logs: logs ?? [] })
+    const [{ data: logs }, { data: tickets }] = await Promise.all([
+      supabase
+        .from('task_logs')
+        .select('id, done_at, points_awarded, task_type:task_types(label)')
+        .eq('done_by', item.userId)
+        .eq('household_id', session.householdId)
+        .order('done_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('tickets')
+        .select('id, completed_at, points, title')
+        .eq('completed_by', item.userId)
+        .eq('household_id', session.householdId)
+        .eq('status', 'done')
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(50),
+    ])
+    const taskLogs = (logs ?? []).map((l: any) => ({ ...l, isTicket: false }))
+    const ticketLogs = (tickets ?? []).map((t: any) => ({
+      id: `ticket-${t.id}`,
+      done_at: t.completed_at,
+      points_awarded: t.points ?? 0,
+      task_type: { label: t.title },
+      isTicket: true,
+    }))
+    const merged = [...taskLogs, ...ticketLogs].sort((a, b) => new Date(b.done_at).getTime() - new Date(a.done_at).getTime())
+    setProfileSheet({ item, logs: merged })
     setLoadingProfile(false)
   }
 
@@ -393,7 +413,10 @@ function ClassementContent() {
                     return (
                       <div key={log.id} className="flex items-center gap-3 bg-[#13131a] border border-[#252535] rounded-xl px-3 py-2.5">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#f0f0f5] truncate">{task?.label ?? '🎫 Ticket'}</p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {log.isTicket && <span className="text-[10px] bg-[#2e2e3e] text-[#7070a0] px-1.5 py-0.5 rounded-md flex-shrink-0">🎫</span>}
+                            <p className="text-sm font-medium text-[#f0f0f5] truncate">{task?.label ?? '?'}</p>
+                          </div>
                           <p className="text-xs text-[#555570]">{date} à {time}</p>
                         </div>
                         <span className="text-sm font-bold text-yellow-400 flex-shrink-0">+{log.points_awarded}</span>
