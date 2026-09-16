@@ -183,20 +183,25 @@ export default function MessagesPage() {
 
   const decryptOne = useCallback(async (msg: RawMessage, target: ChatTarget): Promise<Message> => {
     const { name, color, avatar } = senderInfo(msg.from_profile_id)
+    const raw = msg.encrypted_content
     if (target === 'group') {
       const gk = groupKeyRef.current
-      if (!gk) return { ...msg, plain: '🔒', senderName: name, senderColor: color, senderAvatar: avatar }
-      try {
-        const plain = await decryptWithGroupKey(msg.encrypted_content, gk)
-        return { ...msg, plain, senderName: name, senderColor: color, senderAvatar: avatar }
-      } catch { return { ...msg, plain: '🔒', senderName: name, senderColor: color, senderAvatar: avatar } }
+      if (gk) {
+        try {
+          const plain = await decryptWithGroupKey(raw, gk)
+          return { ...msg, plain, senderName: name, senderColor: color, senderAvatar: avatar }
+        } catch {}
+      }
+      return { ...msg, plain: raw, senderName: name, senderColor: color, senderAvatar: avatar }
     }
     const theirKey = theirKeyRef.current
-    if (!theirKey || !keyPairRef.current) return { ...msg, plain: '🔒' }
-    try {
-      const plain = await decryptMessage(msg.encrypted_content, keyPairRef.current.privateKey, theirKey)
-      return { ...msg, plain }
-    } catch { return { ...msg, plain: '🔒' } }
+    if (theirKey && keyPairRef.current) {
+      try {
+        const plain = await decryptMessage(raw, keyPairRef.current.privateKey, theirKey)
+        return { ...msg, plain }
+      } catch {}
+    }
+    return { ...msg, plain: raw }
   }, [allMembers])
 
   async function loadMessages(target: ChatTarget) {
@@ -236,18 +241,10 @@ export default function MessagesPage() {
     e.preventDefault()
     if (!text.trim()) return
     const isGroup = chat === 'group'
-    if (isGroup && !groupKeyRef.current) return
-    if (!isGroup && (!keyPairRef.current || !theirKeyRef.current)) return
     setSending(true)
     try {
-      let content: string
-      let toProfileId: string | null = null
-      if (isGroup) {
-        content = await encryptWithGroupKey(text.trim(), groupKeyRef.current!)
-      } else {
-        content = await encryptMessage(text.trim(), keyPairRef.current!.privateKey, theirKeyRef.current!)
-        toProfileId = (chat as Profile).id
-      }
+      const toProfileId = isGroup ? null : (chat as Profile).id
+      const content = text.trim()
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -283,7 +280,7 @@ export default function MessagesPage() {
   if (chat !== null) {
     const isGroup = chat === 'group'
     const chatProfile = isGroup ? null : chat as Profile
-    const canSend = isGroup ? groupStatus === 'ok' : !!theirKeyRef.current
+    const canSend = true
 
     return (
       <div className="flex flex-col h-[calc(100dvh-8rem)] animate-slide-up">
