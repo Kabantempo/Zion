@@ -50,6 +50,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   const [editNote, setEditNote] = useState('')
   const [editPoints, setEditPoints] = useState('0')
 
+  const [showDone, setShowDone] = useState(false)
   const displayTickets = filter === 'mine' ? tickets.filter((t) => t.assigned_to === profileId) : tickets
 
   async function createTicket(e: React.FormEvent) {
@@ -148,14 +149,21 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
 
       {COLUMNS.map(({ status, label }) => {
         const col = displayTickets.filter((t) => t.status === status)
+        const isDone = status === 'done'
+        const isCollapsed = isDone && !showDone
         return (
           <div key={status}>
             <div className="flex items-center gap-2 mb-2 px-1">
               <h3 className="text-sm font-semibold text-[#8888a0]">{label}</h3>
               <span className="text-xs bg-[#2e2e3e] text-[#8888a0] px-2 py-0.5 rounded-full">{col.length}</span>
+              {isDone && col.length > 0 && (
+                <button onClick={() => setShowDone(v => !v)} className="ml-auto text-xs text-[#555570] hover:text-[#8888a0] transition-colors">
+                  {showDone ? 'Replier ▲' : 'Voir ▼'}
+                </button>
+              )}
             </div>
             <div className="flex flex-col gap-2">
-              {col.map((ticket) => (
+              {isCollapsed ? null : col.map((ticket) => (
                 <Card key={ticket.id}>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <button className="flex-1 min-w-0 text-left" onClick={() => setDetailTicket(ticket)}>
@@ -224,7 +232,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                   </div>
                 </Card>
               ))}
-              {col.length === 0 && (
+              {col.length === 0 && !isCollapsed && (
                 <p className="text-xs text-[#555570] text-center py-4">Aucun ticket</p>
               )}
             </div>
