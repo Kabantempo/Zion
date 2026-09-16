@@ -276,7 +276,7 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
   const supabase = createClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [displayName, setDisplayName] = useState(profile.display_name)
-  const [color] = useState(profile.color)
+  const [color, setColor] = useState(profile.color)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatar_url ?? null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
@@ -343,8 +343,8 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
           <div className="flex justify-center mb-5">
             <button type="button" onClick={() => fileRef.current?.click()} className="relative group">
               <div
-                className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-2xl font-black text-white shadow-xl transition-opacity group-hover:opacity-80"
-                style={{ backgroundColor: avatarPreview ? 'transparent' : color }}
+                className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-2xl font-black text-white shadow-xl transition-all group-hover:opacity-80"
+                style={{ backgroundColor: color }}
               >
                 {avatarPreview
                   ? <img src={avatarPreview} alt="avatar" className="w-full h-full object-cover" />
@@ -360,6 +360,28 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
 
           <div className="flex flex-col gap-4">
             <Input label="Prénom / Pseudo" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
+            <div>
+              <p className="text-sm font-medium text-[#8888a0] mb-2">Couleur</p>
+              <div className="flex flex-wrap gap-2">
+                {['#ef4444','#f97316','#eab308','#22c55e','#10b981','#06b6d4','#3b82f6','#6366f1','#8b5cf6','#ec4899','#f43f5e','#a3e635'].map(c => {
+                  const takenBy = members.find(m => m.profile_id !== profileId && (m.profile as Profile | undefined)?.color === c)
+                  const taken = !!takenBy
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      disabled={taken}
+                      onClick={() => setColor(c)}
+                      className={`w-8 h-8 rounded-full transition-transform flex items-center justify-center ${taken ? 'opacity-25 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
+                      style={{ backgroundColor: c, boxShadow: color === c ? `0 0 0 3px #09090d, 0 0 0 5px ${c}` : 'none' }}
+                      title={taken ? `Prise par ${(takenBy!.profile as Profile | undefined)?.display_name}` : c}
+                    >
+                      {color === c && <span className="text-white text-xs font-black">✓</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
             <Button type="submit" loading={loading}>
               {saved ? '✓ Sauvegardé !' : 'Sauvegarder'}
