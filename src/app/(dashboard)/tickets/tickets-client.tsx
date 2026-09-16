@@ -146,6 +146,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   }
 
   return (
+    <>
     <div className="p-4 flex flex-col gap-4 animate-slide-up">
       <div className="flex items-center gap-2">
         <div className="flex p-1 bg-[#1a1a24] rounded-xl border border-[#2e2e3e] flex-1">
@@ -253,6 +254,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
 
     </div>
 
+    {/* Sheets */}
     {/* Detail sheet */}
     {detailTicket && createPortal(
       <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setDetailTicket(null)}>
@@ -354,5 +356,6 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
       </div>,
       document.body
     )}
+    </>
   )
 }
