@@ -179,18 +179,30 @@ function ClassementContent() {
     let logsQuery = supabase.from('task_logs').select('done_by, points_awarded, done_at').eq('household_id', householdId)
     if (since) logsQuery = logsQuery.gte('done_at', since)
 
-    const [{ data: logs }, { data: membersData }, { data: allTimeLogs }] = await Promise.all([
+    let ticketsQuery = supabase.from('tickets').select('completed_by, points, completed_at').eq('household_id', householdId).eq('status', 'done').not('completed_at', 'is', null).not('completed_by', 'is', null)
+    if (since) ticketsQuery = ticketsQuery.gte('completed_at', since)
+
+    const [{ data: logs }, { data: membersData }, { data: allTimeLogs }, { data: ticketLogs }] = await Promise.all([
       logsQuery,
       supabase.from('household_members').select('profile_id, profile:profiles(id, display_name, color, avatar_url)').eq('household_id', householdId),
       supabase.from('task_logs').select('done_by, done_at').eq('household_id', householdId).order('done_at', { ascending: false }),
+      ticketsQuery,
     ])
 
-    setRawLogs(logs ?? [])
+    const ticketAsLogs = (ticketLogs ?? [])
+      .filter((t: any) => t.completed_by && t.points > 0)
+      .map((t: any) => ({ done_by: t.completed_by, points_awarded: t.points, done_at: t.completed_at }))
+    setRawLogs([...(logs ?? []), ...ticketAsLogs])
     setMembers(membersData ?? [])
 
     const pointsByProfile: Record<string, number> = {}
     for (const log of logs ?? []) {
       pointsByProfile[log.done_by] = (pointsByProfile[log.done_by] ?? 0) + log.points_awarded
+    }
+    for (const t of ticketLogs ?? []) {
+      if (t.completed_by && t.points > 0) {
+        pointsByProfile[t.completed_by] = (pointsByProfile[t.completed_by] ?? 0) + t.points
+      }
     }
 
     function calcStreak(pid: string): number {
