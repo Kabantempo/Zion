@@ -85,19 +85,15 @@ export default function SuccesPage() {
   }, [])
 
   async function load(profileId: string, householdId: string) {
-    const now = new Date()
-    const weekStart = new Date(now)
-    weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-    weekStart.setHours(0, 0, 0, 0)
-    const weekStartIso = weekStart.toISOString()
+    const since7 = new Date(Date.now() - 7 * 86400000).toISOString()
 
     const [{ data: members }, { data: allLogs }, { data: taskTypes }, { data: tickets }, { data: weekLogs }, { data: weekTickets }] = await Promise.all([
       supabase.from('household_members').select('profile_id, profile:profiles(id, display_name, color, avatar_url)').eq('household_id', householdId),
       supabase.from('task_logs').select('done_by, done_at, points_awarded, task_type_id, task_type:task_types(category)').eq('household_id', householdId),
       supabase.from('task_types').select('id, category').eq('household_id', householdId),
       supabase.from('tickets').select('completed_by').eq('household_id', householdId).eq('status', 'done').not('completed_by', 'is', null),
-      supabase.from('task_logs').select('done_by, done_at, points_awarded').eq('household_id', householdId).gte('done_at', weekStartIso),
-      supabase.from('tickets').select('completed_by, points, completed_at').eq('household_id', householdId).eq('status', 'done').gte('completed_at', weekStartIso).not('completed_at', 'is', null),
+      supabase.from('task_logs').select('done_by, done_at, points_awarded').eq('household_id', householdId).gte('done_at', since7),
+      supabase.from('tickets').select('completed_by, points, completed_at').eq('household_id', householdId).eq('status', 'done').gte('completed_at', since7).not('completed_at', 'is', null),
     ])
 
     const wLogs = weekLogs ?? []
