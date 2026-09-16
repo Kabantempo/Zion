@@ -243,26 +243,12 @@ function ClassementContent() {
     const pts = parseInt(equilSheet.points)
     if (isNaN(pts) || pts === 0) { setEquilSheet(prev => prev ? { ...prev, loading: false } : null); return }
 
-    let taskTypeId: string | null = null
-    const { data: existing } = await supabase.from('task_types').select('id').eq('household_id', data.householdId).eq('label', '⚖️ Équilibrage').maybeSingle()
-    if (existing) {
-      taskTypeId = existing.id
-    } else {
-      const { data: created } = await supabase.from('task_types').insert({
-        household_id: data.householdId, label: '⚖️ Équilibrage', category: 'Autre', points: 0, frequency: 'as_needed',
-      }).select('id').single()
-      taskTypeId = created?.id ?? null
-    }
-    if (!taskTypeId) { setEquilSheet(prev => prev ? { ...prev, loading: false } : null); return }
-
-    const { error } = await supabase.from('task_logs').insert({
-      household_id: data.householdId,
-      task_type_id: taskTypeId,
-      done_by: equilSheet.memberId,
-      done_at: new Date().toISOString(),
-      points_awarded: pts,
+    const res = await fetch('/api/equil', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ householdId: data.householdId, memberId: equilSheet.memberId, points: pts }),
     })
-    if (!error) {
+    if (res.ok) {
       setEquilSheet(null)
       load(data.profileId, data.householdId)
     } else {
