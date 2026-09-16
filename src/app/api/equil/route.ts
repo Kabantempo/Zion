@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   if (!taskTypeId) {
     const { data: created, error: createErr } = await adminSupabase
       .from('task_types')
-      .insert({ household_id: householdId, label: '⚖️ Équilibrage', category: 'Autre', points: 0, frequency: 'as_needed' })
+      .insert({ household_id: householdId, label: '⚖️ Équilibrage', category: 'Autre', points: 1, frequency: 'as_needed' })
       .select('id')
       .single()
     if (createErr) {
