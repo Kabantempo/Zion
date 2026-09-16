@@ -114,15 +114,17 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
     if (newStatus === 'done') {
       update.completed_by = profileId
       update.completed_at = new Date().toISOString()
-      if (note !== undefined) update.completed_note = note || null
     } else {
       update.completed_by = null
       update.completed_at = null
-      update.completed_note = null
     }
     const { error } = await supabase.from('tickets').update(update).eq('id', ticket.id)
     if (!error) {
-      setTickets((prev) => prev.map((t) => t.id === ticket.id ? { ...t, ...update } : t))
+      // Save note separately so a missing column never blocks the completion
+      if (newStatus === 'done' && note !== undefined) {
+        supabase.from('tickets').update({ completed_note: note || null }).eq('id', ticket.id).then(() => {})
+      }
+      setTickets((prev) => prev.map((t) => t.id === ticket.id ? { ...t, ...update, ...(newStatus === 'done' && note !== undefined ? { completed_note: note || null } : {}) } : t))
       if (newStatus === 'done') {
         if (ticket.points > 0) fetch('/api/tickets/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, profileId, points: ticket.points, label: ticket.title }) }).catch(() => {})
         fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ householdId, excludeProfileId: profileId, title: `✅ ${displayName} a terminé`, body: `"${ticket.title}"`, url: '/tickets' }) }).catch(() => {})
