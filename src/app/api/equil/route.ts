@@ -9,31 +9,40 @@ const adminSupabase = createServerClient(
 export async function POST(req: NextRequest) {
   const { householdId, memberId, points } = await req.json()
 
-  if (!householdId || !memberId || points === undefined || points === 0) {
-    return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  if (!householdId || !memberId || points == null) {
+    return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
   }
 
-  let taskTypeId: string | null = null
+  const pts = Number(points)
+  if (!Number.isFinite(pts) || pts === 0) {
+    return NextResponse.json({ error: 'Points invalides' }, { status: 400 })
+  }
+
+  // Find or create the Équilibrage task type
   const { data: existing } = await adminSupabase
     .from('task_types')
     .select('id')
     .eq('household_id', householdId)
     .eq('label', '⚖️ Équilibrage')
-    .maybeSingle()
+    .limit(1)
 
-  if (existing) {
-    taskTypeId = existing.id
-  } else {
-    const { data: created } = await adminSupabase
+  let taskTypeId: string | null = existing?.[0]?.id ?? null
+
+  if (!taskTypeId) {
+    const { data: created, error: createErr } = await adminSupabase
       .from('task_types')
       .insert({ household_id: householdId, label: '⚖️ Équilibrage', category: 'Autre', points: 0, frequency: 'as_needed' })
       .select('id')
       .single()
+    if (createErr) {
+      console.error('equil: create task_type error', createErr)
+      return NextResponse.json({ error: createErr.message }, { status: 500 })
+    }
     taskTypeId = created?.id ?? null
   }
 
   if (!taskTypeId) {
-    return NextResponse.json({ error: 'Could not find task type' }, { status: 500 })
+    return NextResponse.json({ error: 'Impossible de créer le type de tâche' }, { status: 500 })
   }
 
   const { error } = await adminSupabase.from('task_logs').insert({
@@ -41,9 +50,13 @@ export async function POST(req: NextRequest) {
     task_type_id: taskTypeId,
     done_by: memberId,
     done_at: new Date().toISOString(),
-    points_awarded: points,
+    points_awarded: pts,
   })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('equil: insert task_log error', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
   return NextResponse.json({ ok: true })
 }

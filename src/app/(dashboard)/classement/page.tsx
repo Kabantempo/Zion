@@ -150,6 +150,7 @@ function ClassementContent() {
   const [profileSheet, setProfileSheet] = useState<{ item: any; logs: any[] } | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(false)
   const [equilSheet, setEquilSheet] = useState<{ memberId: string; points: string; loading: boolean } | null>(null)
+  const [equilError, setEquilError] = useState<string | null>(null)
 
   useEffect(() => {
     const session = getProfileSession()
@@ -239,19 +240,32 @@ function ClassementContent() {
 
   async function submitEquil() {
     if (!equilSheet || !data) return
+    setEquilError(null)
     setEquilSheet(prev => prev ? { ...prev, loading: true } : null)
     const pts = parseInt(equilSheet.points)
-    if (isNaN(pts) || pts === 0) { setEquilSheet(prev => prev ? { ...prev, loading: false } : null); return }
+    if (isNaN(pts) || pts === 0) {
+      setEquilError('Entre un nombre différent de 0')
+      setEquilSheet(prev => prev ? { ...prev, loading: false } : null)
+      return
+    }
 
-    const res = await fetch('/api/equil', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ householdId: data.householdId, memberId: equilSheet.memberId, points: pts }),
-    })
-    if (res.ok) {
-      setEquilSheet(null)
-      load(data.profileId, data.householdId)
-    } else {
+    try {
+      const res = await fetch('/api/equil', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ householdId: data.householdId, memberId: equilSheet.memberId, points: pts }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setEquilSheet(null)
+        setEquilError(null)
+        load(data.profileId, data.householdId)
+      } else {
+        setEquilError(json.error ?? `Erreur ${res.status}`)
+        setEquilSheet(prev => prev ? { ...prev, loading: false } : null)
+      }
+    } catch (e: any) {
+      setEquilError(e?.message ?? 'Erreur réseau')
       setEquilSheet(prev => prev ? { ...prev, loading: false } : null)
     }
   }
@@ -415,6 +429,9 @@ function ClassementContent() {
                 placeholder="10"
               />
             </div>
+            {equilError && (
+              <p className="text-xs text-red-400 text-center bg-red-500/10 rounded-xl px-3 py-2">{equilError}</p>
+            )}
             <button
               onClick={submitEquil}
               disabled={equilSheet.loading}
