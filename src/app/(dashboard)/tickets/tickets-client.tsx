@@ -37,6 +37,8 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [editTicket, setEditTicket] = useState<Ticket | null>(null)
   const [detailTicket, setDetailTicket] = useState<Ticket | null>(null)
+  const [completeTicket, setCompleteTicket] = useState<Ticket | null>(null)
+  const [completeNote, setCompleteNote] = useState('')
 
   // Create form state
   const [title, setTitle] = useState('')
@@ -106,15 +108,17 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
     setLoading(null)
   }
 
-  async function moveTicket(ticket: Ticket, newStatus: Ticket['status']) {
+  async function moveTicket(ticket: Ticket, newStatus: Ticket['status'], note?: string) {
     setLoading(ticket.id)
     const update: Partial<Ticket> = { status: newStatus }
     if (newStatus === 'done') {
       update.completed_by = profileId
       update.completed_at = new Date().toISOString()
+      if (note !== undefined) update.completed_note = note || null
     } else {
       update.completed_by = null
       update.completed_at = null
+      update.completed_note = null
     }
     const { error } = await supabase.from('tickets').update(update).eq('id', ticket.id)
     if (!error) {
@@ -204,7 +208,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                       </Button>
                     )}
                     {status === 'in_progress' && (
-                      <Button size="sm" className="flex-1" loading={loading === ticket.id} onClick={() => moveTicket(ticket, 'done')}>
+                      <Button size="sm" className="flex-1" loading={loading === ticket.id} onClick={() => { setCompleteTicket(ticket); setCompleteNote('') }}>
                         Marquer fait ✓
                       </Button>
                     )}
@@ -272,6 +276,12 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                 </div>
               )}
             </div>
+            {detailTicket.completed_note && (
+              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+                <p className="text-xs text-green-400 mb-1">Message de complétion</p>
+                <p className="text-sm text-[#d0d0e0]">{detailTicket.completed_note}</p>
+              </div>
+            )}
             <button onClick={() => setDetailTicket(null)} className="mt-1 text-sm text-[#7070a0] text-center py-2">Fermer</button>
           </div>
         </div>
@@ -296,6 +306,42 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
             <Input label="Points à attribuer" type="number" min="0" max="500" value={editPoints} onChange={(e) => setEditPoints(e.target.value)} />
             <Button type="submit" loading={loading === 'edit'} className="w-full">Sauvegarder</Button>
           </form>
+        </div>
+      )}
+
+      {/* Complete note sheet */}
+      {completeTicket && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setCompleteTicket(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-5 flex flex-col gap-4 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+            <div>
+              <h3 className="text-base font-bold text-[#f0f0f5] mb-0.5">Marquer comme fait</h3>
+              <p className="text-xs text-[#7070a0]">{completeTicket.title}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#8888a0] mb-1.5">Laisser un message (optionnel)</p>
+              <textarea
+                value={completeNote}
+                onChange={(e) => setCompleteNote(e.target.value)}
+                placeholder="Ex: C'est fait, j'ai aussi changé la pile..."
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-green-500 resize-none text-sm placeholder:text-[#555570]"
+              />
+            </div>
+            <Button
+              loading={loading === completeTicket.id}
+              className="w-full !bg-green-600 hover:!bg-green-500"
+              onClick={async () => {
+                const t = completeTicket
+                setCompleteTicket(null)
+                await moveTicket(t, 'done', completeNote)
+              }}
+            >
+              Confirmer ✓
+            </Button>
+            <button onClick={() => setCompleteTicket(null)} className="text-sm text-[#7070a0] text-center pb-1">Annuler</button>
+          </div>
         </div>
       )}
 

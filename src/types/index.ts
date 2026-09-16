@@ -59,6 +59,7 @@ export interface Ticket {
   created_by: string
   completed_by: string | null
   completed_at: string | null
+  completed_note: string | null
   points: number
   assignee?: Profile
   creator?: Profile
