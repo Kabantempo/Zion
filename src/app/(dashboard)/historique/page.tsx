@@ -13,6 +13,7 @@ interface LogEntry {
   points_awarded: number
   label: string
   category: string
+  isTicket?: boolean
 }
 
 interface Profile {
@@ -35,12 +36,19 @@ export default function HistoriquePage() {
   }, [])
 
   async function load(profileId: string, householdId: string) {
-    const [{ data: logs }, { data: members }] = await Promise.all([
+    const [{ data: logs }, { data: tickets }, { data: members }] = await Promise.all([
       supabase.from('task_logs')
         .select('id, done_by, done_at, points_awarded, task_type:task_types(label, category)')
         .eq('household_id', householdId)
         .order('done_at', { ascending: false })
         .limit(300),
+      supabase.from('tickets')
+        .select('id, completed_by, completed_at, points, title')
+        .eq('household_id', householdId)
+        .eq('status', 'done')
+        .not('completed_at', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(100),
       supabase.from('household_members')
         .select('profile_id, profile:profiles(id, display_name, color, avatar_url)')
         .eq('household_id', householdId),
@@ -52,7 +60,7 @@ export default function HistoriquePage() {
       if (p) profiles[m.profile_id] = p
     }
 
-    const entries: LogEntry[] = (logs ?? []).map((l: any) => {
+    const taskEntries: LogEntry[] = (logs ?? []).map((l: any) => {
       const tt = Array.isArray(l.task_type) ? l.task_type[0] : l.task_type
       return {
         id: l.id,
@@ -64,7 +72,22 @@ export default function HistoriquePage() {
       }
     })
 
-    setData({ logs: entries, profiles, myId: profileId })
+    const ticketEntries: LogEntry[] = (tickets ?? [])
+      .filter((t: any) => t.completed_by && t.completed_at)
+      .map((t: any) => ({
+        id: `ticket-${t.id}`,
+        done_by: t.completed_by,
+        done_at: t.completed_at,
+        points_awarded: t.points ?? 0,
+        label: t.title,
+        category: 'Tickets',
+        isTicket: true,
+      }))
+
+    const allEntries = [...taskEntries, ...ticketEntries]
+      .sort((a, b) => new Date(b.done_at).getTime() - new Date(a.done_at).getTime())
+
+    setData({ logs: allEntries, profiles, myId: profileId })
     setLoading(false)
   }
 
@@ -124,7 +147,10 @@ export default function HistoriquePage() {
                     <Avatar name={profile.display_name} color={profile.color} avatarUrl={profile.avatar_url} size="sm" className="flex-shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#f0f0f8] truncate">{log.label}</p>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {log.isTicket && <span className="text-[10px] bg-[#2e2e3e] text-[#7070a0] px-1.5 py-0.5 rounded-md flex-shrink-0">🎫</span>}
+                      <p className="text-sm font-medium text-[#f0f0f8] truncate">{log.label}</p>
+                    </div>
                     <p className="text-[11px] text-[#7070a0] mt-0.5">
                       {profile?.display_name ?? '?'}{isMe ? ' (moi)' : ''} · {time}
                     </p>
