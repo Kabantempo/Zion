@@ -146,6 +146,8 @@ function ClassementContent() {
   const [loading, setLoading] = useState(true)
   const [rawLogs, setRawLogs] = useState<any[]>([])
   const [members, setMembers] = useState<any[]>([])
+  const [profileSheet, setProfileSheet] = useState<{ item: any; logs: any[] } | null>(null)
+  const [loadingProfile, setLoadingProfile] = useState(false)
 
   useEffect(() => {
     const session = getProfileSession()
@@ -220,8 +222,24 @@ function ClassementContent() {
       .filter(Boolean)
       .sort((a: any, b: any) => b.value - a.value)
 
-    setData({ sorted, profileId, period })
+    setData({ sorted, profileId, period, householdId })
     setLoading(false)
+  }
+
+  async function openProfile(item: any) {
+    setLoadingProfile(true)
+    setProfileSheet({ item, logs: [] })
+    const session = getProfileSession()
+    if (!session) return
+    const { data: logs } = await supabase
+      .from('task_logs')
+      .select('id, done_at, points_awarded, task_type:task_types(label)')
+      .eq('done_by', item.userId)
+      .eq('household_id', session.householdId)
+      .order('done_at', { ascending: false })
+      .limit(50)
+    setProfileSheet({ item, logs: logs ?? [] })
+    setLoadingProfile(false)
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
@@ -332,7 +350,61 @@ function ClassementContent() {
             currentUserId={profileId}
             showPagination
             defaultPageSize={10}
+            onProfileClick={openProfile}
           />
+        </div>
+      )}
+
+      {/* Profile detail sheet */}
+      {profileSheet && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setProfileSheet(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-5 flex flex-col gap-4 max-h-[80dvh] animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-black text-white flex-shrink-0 overflow-hidden" style={{ backgroundColor: profileSheet.item.color ?? '#555' }}>
+                {profileSheet.item.avatarUrl
+                  ? <img src={profileSheet.item.avatarUrl} className="w-full h-full object-cover" />
+                  : profileSheet.item.userName.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-base font-bold text-[#f0f0f5]">{profileSheet.item.userName}</p>
+                <p className="text-xs text-[#7070a0]">{profileSheet.item.byline}</p>
+              </div>
+              <div className="ml-auto text-right">
+                <p className="text-xl font-black text-[#f0f0f5]">{profileSheet.item.value.toLocaleString()}</p>
+                <p className="text-xs text-[#7070a0]">points</p>
+              </div>
+            </div>
+            {/* Logs */}
+            <div className="overflow-y-auto flex-1">
+              <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Dernières actions</p>
+              {loadingProfile ? (
+                <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" /></div>
+              ) : profileSheet.logs.length === 0 ? (
+                <p className="text-sm text-[#555570] text-center py-6">Aucune action enregistrée</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {profileSheet.logs.map((log: any) => {
+                    const task = Array.isArray(log.task_type) ? log.task_type[0] : log.task_type
+                    const date = new Date(log.done_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                    const time = new Date(log.done_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                    return (
+                      <div key={log.id} className="flex items-center gap-3 bg-[#13131a] border border-[#252535] rounded-xl px-3 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[#f0f0f5] truncate">{task?.label ?? '🎫 Ticket'}</p>
+                          <p className="text-xs text-[#555570]">{date} à {time}</p>
+                        </div>
+                        <span className="text-sm font-bold text-yellow-400 flex-shrink-0">+{log.points_awarded}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <button onClick={() => setProfileSheet(null)} className="text-sm text-[#7070a0] text-center py-1">Fermer</button>
+          </div>
         </div>
       )}
 

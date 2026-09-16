@@ -19,12 +19,13 @@ interface LeaderboardRankingsProps extends React.HTMLAttributes<HTMLDivElement> 
   currentUserId?: string
   showPagination?: boolean
   defaultPageSize?: number
+  onProfileClick?: (item: LeaderboardRankingItem) => void
 }
 
 const medals: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' }
 
 const LeaderboardRankings = React.forwardRef<HTMLDivElement, LeaderboardRankingsProps>(
-  ({ rankings, currentUserId, showPagination, defaultPageSize = 10, className, ...props }, ref) => {
+  ({ rankings, currentUserId, showPagination, defaultPageSize = 10, onProfileClick, className, ...props }, ref) => {
     const [page, setPage] = React.useState(0)
     const pageSize = defaultPageSize
     const totalPages = Math.ceil(rankings.length / pageSize)
@@ -38,8 +39,10 @@ const LeaderboardRankings = React.forwardRef<HTMLDivElement, LeaderboardRankings
           return (
             <div
               key={item.userId}
+              onClick={() => onProfileClick?.(item)}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors',
+                onProfileClick ? 'cursor-pointer active:scale-[0.98]' : '',
                 isMe ? 'bg-red-500/10 border border-red-500/20' : 'bg-[#13131a] border border-[#252535]'
               )}
             >
