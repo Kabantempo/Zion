@@ -86,9 +86,6 @@ export default function SuccesPage() {
 
   async function load(profileId: string, householdId: string) {
     const since7 = new Date(Date.now() - 7 * 86400000).toISOString()
-    const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); weekStart.setHours(0, 0, 0, 0)
-    const weekNum = Math.max(0, Math.floor((weekStart.getTime() - new Date('2026-01-05T00:00:00.000Z').getTime()) / (7 * 86400000)))
-    const mult = Math.pow(1.1, weekNum)
 
     const [{ data: members }, { data: allLogs }, { data: taskTypes }, { data: tickets }, { data: weekLogs }, { data: weekTickets }] = await Promise.all([
       supabase.from('household_members').select('profile_id, profile:profiles(id, display_name, color, avatar_url)').eq('household_id', householdId),
@@ -108,7 +105,7 @@ export default function SuccesPage() {
     const dayTaskCount: Record<string, number> = {}
     for (const l of wLogs) { const d = new Date(l.done_at).toDateString(); dayTaskCount[d] = (dayTaskCount[d] ?? 0) + 1 }
     const maxDayTasks = Math.max(0, ...Object.values(dayTaskCount))
-    const weekChallengeDone = weekTotalTasks >= Math.round(50 * mult) || weekTotalPts >= Math.round(300 * mult) || (totalMemberCount > 0 && weekActiveProfiles >= totalMemberCount) || maxDayTasks >= Math.round(10 * mult)
+    const weekChallengeDone = weekTotalTasks >= 50 || weekTotalPts >= 300 || (totalMemberCount > 0 && weekActiveProfiles >= totalMemberCount) || maxDayTasks >= 10
 
     const cats = new Set((taskTypes ?? []).map((t: any) => t.category)).size
     const totalTaskTypes = (taskTypes ?? []).length
