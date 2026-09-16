@@ -10,6 +10,8 @@ import {
   encryptMessage, decryptMessage,
   generateGroupKey, wrapGroupKey, unwrapGroupKey,
   encryptWithGroupKey, decryptWithGroupKey,
+  generateHouseholdKey, importHouseholdKey,
+  encryptWithHouseholdKey, decryptWithHouseholdKey,
 } from '@/lib/crypto'
 import type { Profile } from '@/types'
 
@@ -48,6 +50,7 @@ export default function MessagesPage() {
   const keyPairRef = useRef<CryptoKeyPair | null>(null)
   const theirKeyRef = useRef<JsonWebKey | null>(null)
   const groupKeyRef = useRef<CryptoKey | null>(null)
+  const householdKeyRef = useRef<CryptoKey | null>(null)
   const lastMsgIdRef = useRef<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -73,6 +76,21 @@ export default function MessagesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profileId, publicKeyJwk }),
     })
+
+    // Load or create the household shared encryption key
+    const hkRes = await fetch(`/api/messages/household-key?householdId=${householdId}`)
+    const hkRow = await hkRes.json()
+    if (hkRow?.key) {
+      householdKeyRef.current = await importHouseholdKey(hkRow.key)
+    } else {
+      const { key, keyB64 } = await generateHouseholdKey()
+      householdKeyRef.current = key
+      await fetch('/api/messages/household-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ householdId, key: keyB64 }),
+      })
+    }
     const { data } = await supabase.from('household_members')
       .select('profile:profiles(id, display_name, color, avatar_url)')
       .eq('household_id', householdId)
@@ -184,6 +202,17 @@ export default function MessagesPage() {
   const decryptOne = useCallback(async (msg: RawMessage, target: ChatTarget): Promise<Message> => {
     const { name, color, avatar } = senderInfo(msg.from_profile_id)
     const raw = msg.encrypted_content
+
+    // Try household shared key first (new system)
+    const hk = householdKeyRef.current
+    if (hk) {
+      try {
+        const plain = await decryptWithHouseholdKey(raw, hk)
+        return { ...msg, plain, senderName: name, senderColor: color, senderAvatar: avatar }
+      } catch {}
+    }
+
+    // Fallback: old per-person ECDH or group key
     if (target === 'group') {
       const gk = groupKeyRef.current
       if (gk) {
@@ -192,16 +221,18 @@ export default function MessagesPage() {
           return { ...msg, plain, senderName: name, senderColor: color, senderAvatar: avatar }
         } catch {}
       }
-      return { ...msg, plain: raw, senderName: name, senderColor: color, senderAvatar: avatar }
+    } else {
+      const theirKey = theirKeyRef.current
+      if (theirKey && keyPairRef.current) {
+        try {
+          const plain = await decryptMessage(raw, keyPairRef.current.privateKey, theirKey)
+          return { ...msg, plain }
+        } catch {}
+      }
     }
-    const theirKey = theirKeyRef.current
-    if (theirKey && keyPairRef.current) {
-      try {
-        const plain = await decryptMessage(raw, keyPairRef.current.privateKey, theirKey)
-        return { ...msg, plain }
-      } catch {}
-    }
-    return { ...msg, plain: raw }
+
+    // Last resort: show raw (was stored as plaintext during transition)
+    return { ...msg, plain: raw, senderName: name, senderColor: color, senderAvatar: avatar }
   }, [allMembers])
 
   async function loadMessages(target: ChatTarget) {
@@ -244,7 +275,10 @@ export default function MessagesPage() {
     setSending(true)
     try {
       const toProfileId = isGroup ? null : (chat as Profile).id
-      const content = text.trim()
+      const hk = householdKeyRef.current
+      const content = hk
+        ? await encryptWithHouseholdKey(text.trim(), hk)
+        : text.trim()
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

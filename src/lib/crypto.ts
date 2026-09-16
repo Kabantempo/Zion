@@ -145,3 +145,25 @@ export async function decryptWithGroupKey(encrypted: string, groupKey: CryptoKey
   const plain = await decryptBytes(groupKey, encrypted)
   return new TextDecoder().decode(plain)
 }
+
+// Household shared key — stored as base64 raw bytes in Supabase
+export async function generateHouseholdKey(): Promise<{ key: CryptoKey; keyB64: string }> {
+  const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
+  const raw = await crypto.subtle.exportKey('raw', key)
+  const keyB64 = btoa(String.fromCharCode(...new Uint8Array(raw)))
+  return { key, keyB64 }
+}
+
+export async function importHouseholdKey(keyB64: string): Promise<CryptoKey> {
+  const raw = Uint8Array.from(atob(keyB64), c => c.charCodeAt(0))
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
+}
+
+export async function encryptWithHouseholdKey(text: string, key: CryptoKey): Promise<string> {
+  return encryptBytes(key, new TextEncoder().encode(text))
+}
+
+export async function decryptWithHouseholdKey(encrypted: string, key: CryptoKey): Promise<string> {
+  const plain = await decryptBytes(key, encrypted)
+  return new TextDecoder().decode(plain)
+}
