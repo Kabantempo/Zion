@@ -96,6 +96,7 @@ export default function AccueilPage() {
       { data: taskTypes },
       { data: openTickets },
       { data: weekTaskLogs },
+      { data: weekTickets },
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', profileId).single(),
       supabase.from('task_logs').select('done_by, points_awarded, done_at').eq('household_id', householdId).gte('done_at', since30),
@@ -105,6 +106,7 @@ export default function AccueilPage() {
       supabase.from('task_types').select('*').eq('household_id', householdId).order('category'),
       supabase.from('tickets').select('id').eq('household_id', householdId).in('status', ['todo', 'in_progress']).eq('assigned_to', profileId),
       supabase.from('task_logs').select('done_by, done_at, points_awarded').eq('household_id', householdId).gte('done_at', weekStartIso),
+      supabase.from('tickets').select('completed_by, points, completed_at').eq('household_id', householdId).eq('status', 'done').gte('completed_at', weekStartIso).not('completed_at', 'is', null),
     ])
 
     // Points
@@ -130,11 +132,16 @@ export default function AccueilPage() {
     const todayStr = new Date().toDateString()
     const todayCount = myLogs.filter((l: any) => new Date(l.done_at).toDateString() === todayStr).length
 
-    // Weekly challenges
+    // Weekly challenges — include ticket points
     const weekLogsArr = weekTaskLogs ?? []
-    const totalWeekTasks = weekLogsArr.length
+    const weekTicketsArr = (weekTickets ?? []).filter((t: any) => t.completed_by && (t.points ?? 0) > 0)
+    const totalWeekTasks = weekLogsArr.length + weekTicketsArr.length
     const totalWeekPts = weekLogsArr.reduce((s: number, l: any) => s + l.points_awarded, 0)
-    const activeProfiles = new Set(weekLogsArr.map((l: any) => l.done_by)).size
+      + weekTicketsArr.reduce((s: number, t: any) => s + (t.points ?? 0), 0)
+    const activeProfiles = new Set([
+      ...weekLogsArr.map((l: any) => l.done_by),
+      ...weekTicketsArr.map((t: any) => t.completed_by),
+    ]).size
     const totalMembers = (members ?? []).length
 
     // Max tasks in one day
