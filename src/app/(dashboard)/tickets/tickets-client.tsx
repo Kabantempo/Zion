@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
@@ -52,6 +53,16 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
 
   const [showDone, setShowDone] = useState(false)
   const displayTickets = filter === 'mine' ? tickets.filter((t) => t.assigned_to === profileId) : tickets
+
+  const anySheetOpen = showCreate || !!editTicket || !!detailTicket || !!confirmDelete
+  useEffect(() => {
+    if (anySheetOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [anySheetOpen])
 
   async function createTicket(e: React.FormEvent) {
     e.preventDefault()
@@ -240,104 +251,108 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
         )
       })}
 
-      {/* Detail sheet */}
-      {detailTicket && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setDetailTicket(null)}>
-          <div className="absolute inset-0 bg-black/60" />
-          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-5 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()}>
-            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="text-base font-bold text-[#f0f0f5] flex-1">{detailTicket.title}</h3>
-              <Badge variant={STATUS_BADGE[detailTicket.status]}>{STATUS_LABELS[detailTicket.status]}</Badge>
-            </div>
-            {detailTicket.note && (
-              <div className="bg-[#13131a] border border-[#2e2e3e] rounded-xl p-3">
-                <p className="text-xs text-[#7070a0] mb-1">Note</p>
-                <p className="text-sm text-[#d0d0e0]">{detailTicket.note}</p>
-              </div>
-            )}
-            <div className="flex flex-col gap-2.5">
-              {detailTicket.creator && (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-[#555570] w-20 flex-shrink-0">Créé par</span>
-                  <Avatar name={(detailTicket.creator as Profile).display_name} color={(detailTicket.creator as Profile).color} avatarUrl={(detailTicket.creator as Profile).avatar_url} size="sm" />
-                  <span className="text-sm text-[#f0f0f5]">{(detailTicket.creator as Profile).display_name}</span>
-                </div>
-              )}
-              {detailTicket.assignee && (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-[#555570] w-20 flex-shrink-0">Assigné à</span>
-                  <Avatar name={(detailTicket.assignee as Profile).display_name} color={(detailTicket.assignee as Profile).color} avatarUrl={(detailTicket.assignee as Profile).avatar_url} size="sm" />
-                  <span className="text-sm text-[#f0f0f5]">{(detailTicket.assignee as Profile).display_name}</span>
-                </div>
-              )}
-              {detailTicket.points > 0 && (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-[#555570] w-20 flex-shrink-0">Points</span>
-                  <span className="text-sm font-bold text-yellow-400">+{detailTicket.points} pts</span>
-                </div>
-              )}
-              {detailTicket.completed_by && detailTicket.completed_at && (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-[#555570] w-20 flex-shrink-0">Terminé le</span>
-                  <span className="text-sm text-green-400">{new Date(detailTicket.completed_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</span>
-                </div>
-              )}
-            </div>
-            {detailTicket.completed_note && (
-              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
-                <p className="text-xs text-green-400 mb-1">Message de complétion</p>
-                <p className="text-sm text-[#d0d0e0]">{detailTicket.completed_note}</p>
-              </div>
-            )}
-            <button onClick={() => setDetailTicket(null)} className="mt-1 text-sm text-[#7070a0] text-center py-2">Fermer</button>
-          </div>
-        </div>
-      )}
-
-      {/* Edit sheet */}
-      {editTicket && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setEditTicket(null)}>
-          <div className="absolute inset-0 bg-black/60" />
-          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()} onSubmit={saveEdit}>
-            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
-            <h3 className="text-base font-bold text-[#f0f0f5]">Modifier le ticket</h3>
-            <Input label="Titre" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
-            <div>
-              <p className="text-sm font-medium text-[#8888a0] mb-1.5">Assigner à</p>
-              <select value={editAssignedTo} onChange={(e) => setEditAssignedTo(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-red-500">
-                <option value="">Personne (à prendre)</option>
-                {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
-              </select>
-            </div>
-            <Input label="Note (optionnel)" value={editNote} onChange={(e) => setEditNote(e.target.value)} />
-            <Input label="Points à attribuer" type="number" min="0" max="500" value={editPoints} onChange={(e) => setEditPoints(e.target.value)} />
-            <Button type="submit" loading={loading === 'edit'} className="w-full">Sauvegarder</Button>
-          </form>
-        </div>
-      )}
-
-      {/* Create sheet */}
-      {showCreate && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setShowCreate(false)}>
-          <div className="absolute inset-0 bg-black/60" />
-          <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()} onSubmit={createTicket}>
-            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
-            <h3 className="text-base font-bold text-[#f0f0f5]">Nouveau ticket</h3>
-            <Input label="Titre" placeholder="Changer l'ampoule du salon" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            <div>
-              <p className="text-sm font-medium text-[#8888a0] mb-1.5">Assigner à</p>
-              <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-red-500">
-                <option value="">Personne (à prendre)</option>
-                {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
-              </select>
-            </div>
-            <Input label="Note (optionnel)" placeholder="Plus d'infos..." value={note} onChange={(e) => setNote(e.target.value)} />
-            <Input label="Points à attribuer" type="number" min="0" max="500" value={points} onChange={(e) => setPoints(e.target.value)} />
-            <Button type="submit" loading={loading === 'create'} className="w-full">Créer le ticket</Button>
-          </form>
-        </div>
-      )}
     </div>
+
+    {/* Detail sheet */}
+    {detailTicket && createPortal(
+      <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setDetailTicket(null)}>
+        <div className="absolute inset-0 bg-black/60" />
+        <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-5 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()}>
+          <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-base font-bold text-[#f0f0f5] flex-1">{detailTicket.title}</h3>
+            <Badge variant={STATUS_BADGE[detailTicket.status]}>{STATUS_LABELS[detailTicket.status]}</Badge>
+          </div>
+          {detailTicket.note && (
+            <div className="bg-[#13131a] border border-[#2e2e3e] rounded-xl p-3">
+              <p className="text-xs text-[#7070a0] mb-1">Note</p>
+              <p className="text-sm text-[#d0d0e0]">{detailTicket.note}</p>
+            </div>
+          )}
+          <div className="flex flex-col gap-2.5">
+            {detailTicket.creator && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-[#555570] w-20 flex-shrink-0">Créé par</span>
+                <Avatar name={(detailTicket.creator as Profile).display_name} color={(detailTicket.creator as Profile).color} avatarUrl={(detailTicket.creator as Profile).avatar_url} size="sm" />
+                <span className="text-sm text-[#f0f0f5]">{(detailTicket.creator as Profile).display_name}</span>
+              </div>
+            )}
+            {detailTicket.assignee && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-[#555570] w-20 flex-shrink-0">Assigné à</span>
+                <Avatar name={(detailTicket.assignee as Profile).display_name} color={(detailTicket.assignee as Profile).color} avatarUrl={(detailTicket.assignee as Profile).avatar_url} size="sm" />
+                <span className="text-sm text-[#f0f0f5]">{(detailTicket.assignee as Profile).display_name}</span>
+              </div>
+            )}
+            {detailTicket.points > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-[#555570] w-20 flex-shrink-0">Points</span>
+                <span className="text-sm font-bold text-yellow-400">+{detailTicket.points} pts</span>
+              </div>
+            )}
+            {detailTicket.completed_by && detailTicket.completed_at && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-[#555570] w-20 flex-shrink-0">Terminé le</span>
+                <span className="text-sm text-green-400">{new Date(detailTicket.completed_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</span>
+              </div>
+            )}
+          </div>
+          {detailTicket.completed_note && (
+            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+              <p className="text-xs text-green-400 mb-1">Message de complétion</p>
+              <p className="text-sm text-[#d0d0e0]">{detailTicket.completed_note}</p>
+            </div>
+          )}
+          <button onClick={() => setDetailTicket(null)} className="mt-1 text-sm text-[#7070a0] text-center py-2">Fermer</button>
+        </div>
+      </div>,
+      document.body
+    )}
+
+    {/* Edit sheet */}
+    {editTicket && createPortal(
+      <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setEditTicket(null)}>
+        <div className="absolute inset-0 bg-black/60" />
+        <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()} onSubmit={saveEdit}>
+          <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+          <h3 className="text-base font-bold text-[#f0f0f5]">Modifier le ticket</h3>
+          <Input label="Titre" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+          <div>
+            <p className="text-sm font-medium text-[#8888a0] mb-1.5">Assigner à</p>
+            <select value={editAssignedTo} onChange={(e) => setEditAssignedTo(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-red-500">
+              <option value="">Personne (à prendre)</option>
+              {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
+            </select>
+          </div>
+          <Input label="Note (optionnel)" value={editNote} onChange={(e) => setEditNote(e.target.value)} />
+          <Input label="Points à attribuer" type="number" min="0" max="500" value={editPoints} onChange={(e) => setEditPoints(e.target.value)} />
+          <Button type="submit" loading={loading === 'edit'} className="w-full">Sauvegarder</Button>
+        </form>
+      </div>,
+      document.body
+    )}
+
+    {/* Create sheet */}
+    {showCreate && createPortal(
+      <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setShowCreate(false)}>
+        <div className="absolute inset-0 bg-black/60" />
+        <form className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-4 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()} onSubmit={createTicket}>
+          <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+          <h3 className="text-base font-bold text-[#f0f0f5]">Nouveau ticket</h3>
+          <Input label="Titre" placeholder="Changer l'ampoule du salon" value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
+          <div>
+            <p className="text-sm font-medium text-[#8888a0] mb-1.5">Assigner à</p>
+            <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[#22222e] border border-[#2e2e3e] text-[#f0f0f5] outline-none focus:border-red-500">
+              <option value="">Personne (à prendre)</option>
+              {profiles.map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
+            </select>
+          </div>
+          <Input label="Note (optionnel)" placeholder="Plus d'infos..." value={note} onChange={(e) => setNote(e.target.value)} />
+          <Input label="Points à attribuer" type="number" min="0" max="500" value={points} onChange={(e) => setPoints(e.target.value)} />
+          <Button type="submit" loading={loading === 'create'} className="w-full">Créer le ticket</Button>
+        </form>
+      </div>,
+      document.body
+    )}
   )
 }
