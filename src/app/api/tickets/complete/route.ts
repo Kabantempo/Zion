@@ -13,9 +13,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
+  // Find or create a task type for tickets in this household
+  let taskTypeId: string | null = null
+  const { data: existing } = await adminSupabase
+    .from('task_types')
+    .select('id')
+    .eq('household_id', householdId)
+    .eq('label', '🎫 Ticket')
+    .single()
+
+  if (existing) {
+    taskTypeId = existing.id
+  } else {
+    const { data: created } = await adminSupabase
+      .from('task_types')
+      .insert({ household_id: householdId, label: '🎫 Ticket', category: 'Tickets', points: 0, frequency: 'as_needed' })
+      .select('id')
+      .single()
+    taskTypeId = created?.id ?? null
+  }
+
   const { error } = await adminSupabase.from('task_logs').insert({
     household_id: householdId,
-    task_type_id: null,
+    task_type_id: taskTypeId,
     done_by: profileId,
     done_at: new Date().toISOString(),
     points_awarded: points,
