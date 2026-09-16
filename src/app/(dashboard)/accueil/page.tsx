@@ -87,6 +87,11 @@ export default function AccueilPage() {
     weekStart.setHours(0, 0, 0, 0)
     const weekStartIso = weekStart.toISOString()
 
+    // Week number since 2026-01-05 (week 0) → +10% targets per week
+    const WEEK_ZERO = new Date('2026-01-05T00:00:00.000Z')
+    const weekNum = Math.max(0, Math.floor((weekStart.getTime() - WEEK_ZERO.getTime()) / (7 * 86400000)))
+    const mult = Math.pow(1.1, weekNum)
+
     const [
       { data: profile },
       { data: allLogs },
@@ -152,11 +157,14 @@ export default function AccueilPage() {
     }
     const maxDayTasks = Math.max(0, ...Object.values(dayTaskCount))
 
+    const tTasks = Math.round(50 * mult)
+    const tPts = Math.round(300 * mult)
+    const tDay = Math.round(10 * mult)
     const challenges: { label: string; emoji: string; current: number; target: number; done: boolean; reward: string }[] = [
-      { label: '50 tâches ensemble', emoji: '⚡', current: totalWeekTasks, target: 50, done: totalWeekTasks >= 50, reward: 'La coloc est en feu cette semaine !' },
+      { label: `${tTasks} tâches ensemble`, emoji: '⚡', current: totalWeekTasks, target: tTasks, done: totalWeekTasks >= tTasks, reward: 'La coloc est en feu cette semaine !' },
       { label: 'Tous les membres actifs', emoji: '👥', current: activeProfiles, target: totalMembers, done: activeProfiles >= totalMembers && totalMembers > 0, reward: 'Tout le monde a participé !' },
-      { label: '10 tâches en un jour', emoji: '🔥', current: maxDayTasks, target: 10, done: maxDayTasks >= 10, reward: 'Journée de feu !' },
-      { label: '300 pts collectifs', emoji: '🏅', current: totalWeekPts, target: 300, done: totalWeekPts >= 300, reward: 'Record de la semaine !' },
+      { label: `${tDay} tâches en un jour`, emoji: '🔥', current: maxDayTasks, target: tDay, done: maxDayTasks >= tDay, reward: 'Journée de feu !' },
+      { label: `${tPts} pts collectifs`, emoji: '🏅', current: totalWeekPts, target: tPts, done: totalWeekPts >= tPts, reward: 'Record de la semaine !' },
     ]
 
     setData({ profile, myMonthPoints, myWeekPoints, level, lvlProgress, lvlNext, streak, rank, todayCount, recentActivity, members, taskTypes, openTickets: openTickets?.length ?? 0, profileId, householdId, weekByProfile, challenges })
