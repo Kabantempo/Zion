@@ -2,6 +2,7 @@
 
 const DB_NAME = 'zion-keys'
 const STORE_NAME = 'keypairs'
+const LS_KEY = (id: string) => `zion-key-${id}`
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -30,13 +31,62 @@ async function saveKey(db: IDBDatabase, profileId: string, pair: CryptoKeyPair):
   })
 }
 
+async function backupToLocalStorage(profileId: string, pair: CryptoKeyPair): Promise<void> {
+  try {
+    const jwk = await crypto.subtle.exportKey('jwk', pair.privateKey)
+    localStorage.setItem(LS_KEY(profileId), JSON.stringify(jwk))
+  } catch {}
+}
+
+async function restoreFromLocalStorage(profileId: string): Promise<CryptoKeyPair | null> {
+  try {
+    const raw = localStorage.getItem(LS_KEY(profileId))
+    if (!raw) return null
+    const jwk = JSON.parse(raw)
+    const privateKey = await crypto.subtle.importKey(
+      'jwk', jwk, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
+    )
+    const pubJwk = { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, key_ops: [] }
+    const publicKey = await crypto.subtle.importKey(
+      'jwk', pubJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []
+    )
+    return { privateKey, publicKey }
+  } catch {
+    return null
+  }
+}
+
 export async function getOrCreateKeyPair(profileId: string): Promise<{ keyPair: CryptoKeyPair; publicKeyJwk: JsonWebKey }> {
   const db = await openDB()
   let keyPair = await getKey(db, profileId)
+
+  // Try to export the existing key — if it's non-extractable (old), replace it
+  if (keyPair) {
+    try {
+      await crypto.subtle.exportKey('jwk', keyPair.privateKey)
+    } catch {
+      // Key is non-extractable, discard and regenerate
+      keyPair = null
+    }
+  }
+
+  // If not in IndexedDB, try localStorage backup
   if (!keyPair) {
-    keyPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey'])
+    keyPair = await restoreFromLocalStorage(profileId)
+    if (keyPair) {
+      await saveKey(db, profileId, keyPair)
+    }
+  }
+
+  // Generate fresh extractable key if still nothing
+  if (!keyPair) {
+    keyPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey'])
     await saveKey(db, profileId, keyPair)
   }
+
+  // Always backup to localStorage
+  await backupToLocalStorage(profileId, keyPair)
+
   const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey)
   return { keyPair, publicKeyJwk }
 }
