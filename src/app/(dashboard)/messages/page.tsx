@@ -326,6 +326,7 @@ export default function MessagesPage() {
             const time = new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
             const showName = isGroup && !isMine && (i === 0 || messages[i - 1].from_profile_id !== msg.from_profile_id)
             const isLast = i === messages.length - 1 || messages[i + 1].from_profile_id !== msg.from_profile_id
+            const expired = Date.now() - new Date(msg.created_at).getTime() > 24 * 60 * 60 * 1000
             return (
               <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
                 {showName && <p className="text-[10px] text-[#7070a0] mb-0.5 ml-10">{msg.senderName}</p>}
@@ -335,9 +336,12 @@ export default function MessagesPage() {
                       ? <Avatar name={msg.senderName ?? '?'} color={msg.senderColor ?? '#555'} avatarUrl={msg.senderAvatar} size="sm" className="flex-shrink-0 mb-0.5" />
                       : <div className="w-8 flex-shrink-0" />
                   )}
-                  <div className={`max-w-[78%] px-3.5 py-2 rounded-2xl ${isMine ? 'bg-red-500 text-white rounded-br-md' : 'bg-[#1e1e2e] border border-[#2e2e3e] text-[#f0f0f8] rounded-bl-md'}`}>
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.plain}</p>
-                    <p className={`text-[10px] mt-0.5 ${isMine ? 'text-red-200' : 'text-[#555570]'} text-right`}>{time}</p>
+                  <div className={`max-w-[78%] px-3.5 py-2 rounded-2xl ${expired ? 'bg-[#1a1a24] border border-[#2e2e3e]' : isMine ? 'bg-red-500 text-white rounded-br-md' : 'bg-[#1e1e2e] border border-[#2e2e3e] text-[#f0f0f8] rounded-bl-md'}`}>
+                    {expired
+                      ? <p className="text-sm text-[#444458] select-none">🔒 Message expiré</p>
+                      : <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.plain}</p>
+                    }
+                    <p className={`text-[10px] mt-0.5 ${expired ? 'text-[#333348]' : isMine ? 'text-red-200' : 'text-[#555570]'} text-right`}>{time}</p>
                   </div>
                 </div>
               </div>
