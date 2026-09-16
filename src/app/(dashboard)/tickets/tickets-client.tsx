@@ -36,6 +36,7 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
   const [filter, setFilter] = useState<'all' | 'mine'>('all')
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [editTicket, setEditTicket] = useState<Ticket | null>(null)
+  const [detailTicket, setDetailTicket] = useState<Ticket | null>(null)
 
   // Create form state
   const [title, setTitle] = useState('')
@@ -153,10 +154,10 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
               {col.map((ticket) => (
                 <Card key={ticket.id}>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex-1 min-w-0">
+                    <button className="flex-1 min-w-0 text-left" onClick={() => setDetailTicket(ticket)}>
                       <p className="text-sm font-medium text-[#f0f0f5]">{ticket.title}</p>
                       {ticket.points > 0 && <p className="text-xs font-bold text-yellow-400 mt-0.5">+{ticket.points} pts</p>}
-                    </div>
+                    </button>
                     <Badge variant={STATUS_BADGE[ticket.status]}>{STATUS_LABELS[ticket.status]}</Badge>
                     <div className="flex gap-1 flex-shrink-0">
                       <button onClick={() => openEdit(ticket)} className="w-6 h-6 flex items-center justify-center rounded-lg text-[#7070a0] hover:text-blue-400 hover:bg-blue-500/10 transition-all text-xs">✏️</button>
@@ -170,12 +171,21 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
                       )}
                     </div>
                   </div>
-                  {ticket.assignee && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <Avatar name={(ticket.assignee as Profile).display_name} color={(ticket.assignee as Profile).color} avatarUrl={(ticket.assignee as Profile).avatar_url} size="sm" />
-                      <span className="text-xs text-[#8888a0]">{(ticket.assignee as Profile).display_name}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    {ticket.assignee && (
+                      <div className="flex items-center gap-1.5">
+                        <Avatar name={(ticket.assignee as Profile).display_name} color={(ticket.assignee as Profile).color} avatarUrl={(ticket.assignee as Profile).avatar_url} size="xs" />
+                        <span className="text-xs text-[#8888a0]">{(ticket.assignee as Profile).display_name}</span>
+                      </div>
+                    )}
+                    {ticket.creator && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-[#555570]">par</span>
+                        <Avatar name={(ticket.creator as Profile).display_name} color={(ticket.creator as Profile).color} avatarUrl={(ticket.creator as Profile).avatar_url} size="xs" />
+                        <span className="text-xs text-[#555570]">{(ticket.creator as Profile).display_name}</span>
+                      </div>
+                    )}
+                  </div>
                   {ticket.note && <p className="text-xs text-[#555570] mb-2 italic">{ticket.note}</p>}
                   <div className="flex gap-2 mt-1">
                     {status === 'in_progress' && (
@@ -217,6 +227,55 @@ export function TicketsClient({ tickets: initialTickets, profiles, taskTypes, ho
           </div>
         )
       })}
+
+      {/* Detail sheet */}
+      {detailTicket && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end" onClick={() => setDetailTicket(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-5 flex flex-col gap-4 max-h-[80dvh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-base font-bold text-[#f0f0f5] flex-1">{detailTicket.title}</h3>
+              <Badge variant={STATUS_BADGE[detailTicket.status]}>{STATUS_LABELS[detailTicket.status]}</Badge>
+            </div>
+            {detailTicket.note && (
+              <div className="bg-[#13131a] border border-[#2e2e3e] rounded-xl p-3">
+                <p className="text-xs text-[#7070a0] mb-1">Note</p>
+                <p className="text-sm text-[#d0d0e0]">{detailTicket.note}</p>
+              </div>
+            )}
+            <div className="flex flex-col gap-2.5">
+              {detailTicket.creator && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-[#555570] w-20 flex-shrink-0">Créé par</span>
+                  <Avatar name={(detailTicket.creator as Profile).display_name} color={(detailTicket.creator as Profile).color} avatarUrl={(detailTicket.creator as Profile).avatar_url} size="sm" />
+                  <span className="text-sm text-[#f0f0f5]">{(detailTicket.creator as Profile).display_name}</span>
+                </div>
+              )}
+              {detailTicket.assignee && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-[#555570] w-20 flex-shrink-0">Assigné à</span>
+                  <Avatar name={(detailTicket.assignee as Profile).display_name} color={(detailTicket.assignee as Profile).color} avatarUrl={(detailTicket.assignee as Profile).avatar_url} size="sm" />
+                  <span className="text-sm text-[#f0f0f5]">{(detailTicket.assignee as Profile).display_name}</span>
+                </div>
+              )}
+              {detailTicket.points > 0 && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-[#555570] w-20 flex-shrink-0">Points</span>
+                  <span className="text-sm font-bold text-yellow-400">+{detailTicket.points} pts</span>
+                </div>
+              )}
+              {detailTicket.completed_by && detailTicket.completed_at && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-[#555570] w-20 flex-shrink-0">Terminé le</span>
+                  <span className="text-sm text-green-400">{new Date(detailTicket.completed_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</span>
+                </div>
+              )}
+            </div>
+            <button onClick={() => setDetailTicket(null)} className="mt-1 text-sm text-[#7070a0] text-center py-2">Fermer</button>
+          </div>
+        </div>
+      )}
 
       {/* Edit sheet */}
       {editTicket && (

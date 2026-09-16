@@ -22,7 +22,7 @@ export default function TicketsPage() {
   async function load(profileId: string, householdId: string) {
     const [{ data: tickets }, { data: members }, { data: taskTypes }, { data: myProfile }] = await Promise.all([
       supabase.from('tickets')
-        .select('*, assignee:profiles!assigned_to(id, display_name, color, avatar_url), creator:profiles!created_by(display_name)')
+        .select('*, assignee:profiles!assigned_to(id, display_name, color, avatar_url), creator:profiles!created_by(id, display_name, color, avatar_url)')
         .eq('household_id', householdId)
         .order('created_at', { ascending: false }),
       supabase.from('household_members')
