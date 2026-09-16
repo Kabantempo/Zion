@@ -60,16 +60,6 @@ export async function getOrCreateKeyPair(profileId: string): Promise<{ keyPair: 
   const db = await openDB()
   let keyPair = await getKey(db, profileId)
 
-  // Try to export the existing key — if it's non-extractable (old), replace it
-  if (keyPair) {
-    try {
-      await crypto.subtle.exportKey('jwk', keyPair.privateKey)
-    } catch {
-      // Key is non-extractable, discard and regenerate
-      keyPair = null
-    }
-  }
-
   // If not in IndexedDB, try localStorage backup
   if (!keyPair) {
     keyPair = await restoreFromLocalStorage(profileId)
@@ -84,7 +74,7 @@ export async function getOrCreateKeyPair(profileId: string): Promise<{ keyPair: 
     await saveKey(db, profileId, keyPair)
   }
 
-  // Always backup to localStorage
+  // Backup to localStorage only if extractable (new keys), silently skip old non-extractable ones
   await backupToLocalStorage(profileId, keyPair)
 
   const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey)
