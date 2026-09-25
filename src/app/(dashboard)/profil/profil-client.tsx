@@ -326,7 +326,11 @@ export function ProfilClient({ profile, household, members, profileId, isAdmin }
     setTimeout(() => { setSaved(false); router.refresh() }, 1500)
   }
 
-  function logout() {
+  async function logout() {
+    const session = getProfileSession()
+    if (session?.profileId) {
+      try { await supabase.from('profiles').update({ claimed_by: null }).eq('id', session.profileId) } catch {}
+    }
     localStorage.removeItem('zion_profile')
     window.location.href = '/profiles'
   }
