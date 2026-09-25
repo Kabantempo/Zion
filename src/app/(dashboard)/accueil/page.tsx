@@ -111,7 +111,8 @@ export default function AccueilPage() {
 
     // Points
     const myMonthPoints = (allLogs ?? []).filter((l: any) => l.done_by === profileId).reduce((s: number, l: any) => s + l.points_awarded, 0)
-    const myWeekPoints = (weekLogs ?? []).filter((l: any) => l.done_by === profileId).reduce((s: number, l: any) => s + l.points_awarded, 0)
+    const myWeekTicketPts = (weekTickets ?? []).filter((t: any) => t.completed_by === profileId && (t.points ?? 0) > 0).reduce((s: number, t: any) => s + (t.points ?? 0), 0)
+    const myWeekPoints = (weekLogs ?? []).filter((l: any) => l.done_by === profileId).reduce((s: number, l: any) => s + l.points_awarded, 0) + myWeekTicketPts
     const level = getLevel(myMonthPoints)
     const { current: lvlCurrent, next: lvlNext } = getPointsForNextLevel(myMonthPoints)
     const lvlProgress = lvlNext > lvlCurrent ? Math.min(100, ((myMonthPoints - lvlCurrent) / (lvlNext - lvlCurrent)) * 100) : 100
@@ -122,9 +123,13 @@ export default function AccueilPage() {
     let streak = days.has(new Date().toDateString()) ? 1 : 0
     if (streak) { let d = new Date(Date.now() - 86400000); while (days.has(d.toDateString())) { streak++; d = new Date(d.getTime() - 86400000) } }
 
-    // Rank this week
+    // Rank this week (task_logs + tickets)
     const weekByProfile: Record<string, number> = {}
     for (const l of weekLogs ?? []) weekByProfile[l.done_by] = (weekByProfile[l.done_by] ?? 0) + l.points_awarded
+    for (const t of weekTickets ?? []) {
+      if (t.completed_by && (t.points ?? 0) > 0)
+        weekByProfile[t.completed_by] = (weekByProfile[t.completed_by] ?? 0) + (t.points ?? 0)
+    }
     const sorted = Object.entries(weekByProfile).sort(([, a], [, b]) => b - a)
     const rank = sorted.findIndex(([id]) => id === profileId) + 1
 
