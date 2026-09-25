@@ -83,40 +83,23 @@ export default function ProfilesPage() {
   }
 
   async function loadHousehold() {
-    // Get the first (and only) household, or create one
+    // Try to get householdId from Supabase, fallback to localStorage
     let { data: households } = await supabase.from('households').select('id').limit(1)
-
     let hId: string | null = households && households.length > 0 ? households[0].id : null
+    if (!hId) { try { hId = localStorage.getItem('zion_household_id') } catch {} }
+    if (!hId) { setHouseholdId(null); setProfiles([]); return }
 
-    // Fallback: use last known householdId from localStorage (if RLS blocks the new anon user)
-    if (!hId) {
-      try { hId = localStorage.getItem('zion_household_id') } catch {}
-    }
-
-    if (!hId) {
-      setHouseholdId(null)
-      setProfiles([])
-      return
-    }
-
-    // Persist for future fallback
     try { localStorage.setItem('zion_household_id', hId) } catch {}
     setHouseholdId(hId)
 
-    const res = await supabase
-      .from('household_members')
-      .select('profile:profiles(id, display_name, color, avatar_url, claimed_by)')
-      .eq('household_id', hId)
-
-    // If RLS blocks the query, fall back to API route
-    let members = res.data
-    if (!members || members.length === 0) {
-      const apiRes = await fetch(`/api/household/profiles?householdId=${hId}`)
-      if (apiRes.ok) { const json = await apiRes.json(); members = json.members ?? [] }
+    // Always use admin API route to guarantee all profiles are visible regardless of RLS
+    const apiRes = await fetch(`/api/household/profiles?householdId=${hId}`)
+    if (apiRes.ok) {
+      const json = await apiRes.json()
+      const members = json.members ?? []
+      const ps = members.map((m: any) => Array.isArray(m.profile) ? m.profile[0] : m.profile).filter(Boolean) as HouseholdProfile[]
+      setProfiles(ps)
     }
-
-    const ps = (members ?? []).map((m: any) => Array.isArray(m.profile) ? m.profile[0] : m.profile).filter(Boolean) as HouseholdProfile[]
-    setProfiles(ps)
   }
 
   async function selectProfile(profile: HouseholdProfile) {
