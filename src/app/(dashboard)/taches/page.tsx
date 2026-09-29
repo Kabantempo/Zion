@@ -86,7 +86,7 @@ function SwipeableTaskCard({ task, doneToday, onDone }: {
   }
 
   return (
-    <div ref={wrapRef} className="relative overflow-hidden rounded-xl">
+    <div ref={wrapRef} className="relative overflow-hidden rounded-xl group">
       <div ref={greenRef} className="absolute inset-0 flex items-center px-5 bg-green-500 rounded-xl opacity-0">
         <span ref={checkRef} className="text-white font-black text-xl" style={{ transform: 'scale(0.6)' }}>✓</span>
         <span className="text-white font-semibold text-sm ml-2">+{task.points} pts</span>
@@ -98,7 +98,14 @@ function SwipeableTaskCard({ task, doneToday, onDone }: {
               <p className="text-sm font-medium text-[#f0f0f5]">{task.label}</p>
               <p className="text-xs text-[#8888a0] mt-0.5">{frequencyLabel(task.frequency)}</p>
             </div>
-            <span className="text-sm font-bold text-green-400">+{task.points} pts</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-green-400">+{task.points} pts</span>
+              <button
+                onClick={() => onDone(task)}
+                className="hidden group-hover:flex items-center justify-center w-7 h-7 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500 hover:text-white transition-all duration-150 text-base font-bold"
+                title="Valider"
+              >✓</button>
+            </div>
           </div>
         </Card>
       </div>
@@ -223,7 +230,8 @@ export default function TachesPage() {
         <div className="flex items-center justify-between mb-2 px-1">
           <h3 className="text-sm font-semibold text-[#8888a0]">
             Tâches disponibles
-            <span className="text-[#555570] font-normal ml-2 text-xs">← glisser pour valider</span>
+            <span className="text-[#555570] font-normal ml-2 text-xs hidden sm:inline">← glisser / cliquer ✓</span>
+            <span className="text-[#555570] font-normal ml-2 text-xs sm:hidden">← glisser pour valider</span>
           </h3>
           <a href="/historique" className="text-xs text-[#7070a0] hover:text-red-400 transition-colors">Historique →</a>
         </div>
