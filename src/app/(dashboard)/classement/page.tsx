@@ -22,6 +22,14 @@ export default function ClassementPage() {
 
 function EvolutionChart({ logs, members, period }: { logs: any[]; members: any[]; period: Period }) {
   const [chartType, setChartType] = useState<'line' | 'bar'>('line')
+  const [hiddenPids, setHiddenPids] = useState<Set<string>>(new Set())
+  const [showTickets, setShowTickets] = useState(true)
+
+  function togglePid(pid: string) {
+    setHiddenPids(prev => { const s = new Set(prev); s.has(pid) ? s.delete(pid) : s.add(pid); return s })
+  }
+
+  const filteredLogs = logs.filter(l => !l.isTicket || showTickets)
 
   const numDays = period === 'week' ? 7 : period === 'month' ? 30 : 90
   const W = 340, H = 140, PAD = { top: 10, right: 10, bottom: 24, left: 32 }
@@ -40,7 +48,7 @@ function EvolutionChart({ logs, members, period }: { logs: any[]; members: any[]
     const pid = m.profile_id || m.userId
     dailyByProfile[pid] = Array(numDays).fill(0)
   }
-  for (const log of logs) {
+  for (const log of filteredLogs) {
     const logDay = log.done_at?.slice(0, 10)
     const idx = days.indexOf(logDay)
     if (idx !== -1 && dailyByProfile[log.done_by] !== undefined) {
@@ -86,6 +94,9 @@ function EvolutionChart({ logs, members, period }: { logs: any[]; members: any[]
           {period === 'week' ? ' — 7j' : period === 'month' ? ' — 30j' : ' — 90j'}
         </p>
         <div className="flex gap-1">
+          <button onClick={() => setShowTickets(p => !p)}
+            className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${showTickets ? 'bg-[#2e2e3e] text-[#f0f0f8]' : 'text-[#555570]'}`}
+            title="Tickets">🎫</button>
           {(['line', 'bar'] as const).map(t => (
             <button key={t} onClick={() => setChartType(t)}
               className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${chartType === t ? 'bg-red-500 text-white' : 'text-[#555570] hover:text-[#f0f0f8]'}`}>
@@ -108,18 +119,18 @@ function EvolutionChart({ logs, members, period }: { logs: any[]; members: any[]
               {i === numDays - 1 ? 'Auj' : `J-${numDays - 1 - i}`}
             </text>
           ))}
-          {memberList.map(({ pid, color }) => {
+          {memberList.filter(({ pid }) => !hiddenPids.has(pid)).map(({ pid, color }) => {
             const pts = cumulative[pid]; if (!pts) return null
             return <polyline key={pid} points={polyline(pts)} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           })}
-          {memberList.map(({ pid, color }) => {
+          {memberList.filter(({ pid }) => !hiddenPids.has(pid)).map(({ pid, color }) => {
             const pts = cumulative[pid]; if (!pts) return null
             return <circle key={pid} cx={toX(numDays - 1)} cy={toY(pts[numDays - 1])} r="3" fill={color} stroke="#13131a" strokeWidth="1.5" />
           })}
         </svg>
       ) : (
         <div className="flex flex-col gap-2">
-          {barMembers.map(({ pid, color, name }) => {
+          {barMembers.filter(({ pid }) => !hiddenPids.has(pid)).map(({ pid, color, name }) => {
             const val = totals[pid] ?? 0
             const pct = maxTotal > 0 ? (val / maxTotal) * 100 : 0
             return (
@@ -140,7 +151,9 @@ function EvolutionChart({ logs, members, period }: { logs: any[]; members: any[]
 
       <div className="flex flex-wrap gap-3 mt-3">
         {memberList.map(({ pid, color, name }) => (
-          <div key={pid} className="flex items-center gap-1.5">
+          <div key={pid} className="flex items-center gap-1.5 cursor-pointer select-none transition-opacity"
+            style={{ opacity: hiddenPids.has(pid) ? 0.3 : 1 }}
+            onClick={() => togglePid(pid)}>
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
             <span className="text-[10px] text-[#8888a0]">{name}</span>
             <span className="text-[10px] font-bold text-[#f0f0f5]">{totals[pid] ?? 0}pts</span>
@@ -210,8 +223,8 @@ function ClassementContent() {
     ])
 
     const validTickets = (ticketLogs ?? []).filter((t: any) => t.completed_by && t.completed_at && (t.points ?? 0) > 0)
-    const ticketAsLogs = validTickets.map((t: any) => ({ done_by: t.completed_by, points_awarded: t.points, done_at: t.completed_at }))
-    setRawLogs([...(logs ?? []), ...ticketAsLogs])
+    const ticketAsLogs = validTickets.map((t: any) => ({ done_by: t.completed_by, points_awarded: t.points, done_at: t.completed_at, isTicket: true }))
+    setRawLogs([...(logs ?? []).map((l: any) => ({ ...l, isTicket: false })), ...ticketAsLogs])
     setMembers(membersData ?? [])
 
     const pointsByProfile: Record<string, number> = {}
