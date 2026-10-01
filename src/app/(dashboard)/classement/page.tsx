@@ -23,13 +23,13 @@ export default function ClassementPage() {
 function EvolutionChart({ logs, members, period }: { logs: any[]; members: any[]; period: Period }) {
   const [chartType, setChartType] = useState<'line' | 'bar'>('line')
   const [hiddenPids, setHiddenPids] = useState<Set<string>>(new Set())
-  const [showTickets, setShowTickets] = useState(true)
+  const [logFilter, setLogFilter] = useState<'all' | 'tasks' | 'tickets'>('all')
 
   function togglePid(pid: string) {
     setHiddenPids(prev => { const s = new Set(prev); s.has(pid) ? s.delete(pid) : s.add(pid); return s })
   }
 
-  const filteredLogs = logs.filter(l => !l.isTicket || showTickets)
+  const filteredLogs = logs.filter(l => logFilter === 'all' ? true : logFilter === 'tickets' ? l.isTicket : !l.isTicket)
 
   const numDays = period === 'week' ? 7 : period === 'month' ? 30 : 90
   const W = 340, H = 140, PAD = { top: 10, right: 10, bottom: 24, left: 32 }
@@ -94,9 +94,12 @@ function EvolutionChart({ logs, members, period }: { logs: any[]; members: any[]
           {period === 'week' ? ' — 7j' : period === 'month' ? ' — 30j' : ' — 90j'}
         </p>
         <div className="flex gap-1">
-          <button onClick={() => setShowTickets(p => !p)}
-            className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${showTickets ? 'bg-[#2e2e3e] text-[#f0f0f8]' : 'text-[#555570]'}`}
-            title="Tickets">🎫</button>
+          {(['all', 'tasks', 'tickets'] as const).map(f => (
+            <button key={f} onClick={() => setLogFilter(f)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${logFilter === f ? 'bg-[#2e2e3e] text-[#f0f0f8]' : 'text-[#555570] hover:text-[#7070a0]'}`}>
+              {f === 'all' ? 'Tout' : f === 'tasks' ? '✅' : '🎫'}
+            </button>
+          ))}
           {(['line', 'bar'] as const).map(t => (
             <button key={t} onClick={() => setChartType(t)}
               className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${chartType === t ? 'bg-red-500 text-white' : 'text-[#555570] hover:text-[#f0f0f8]'}`}>

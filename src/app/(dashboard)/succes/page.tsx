@@ -26,6 +26,7 @@ interface MemberStats {
   uniqueTasksDone: number
   totalTaskTypes: number
   weekChallengeDone: boolean
+  hasBeenChampion: boolean
 }
 
 const ACHIEVEMENTS: Achievement[] = [
@@ -48,6 +49,7 @@ const ACHIEVEMENTS: Achievement[] = [
   { id: 'cyberpsycho',  emoji: '🤖', label: 'Cyberpsycho',      desc: '10 tickets complétés',            tier: 'gold',    check: s => s.ticketsCompleted >= 10, progress: s => ({ current: Math.min(s.ticketsCompleted, 10), total: 10 }) },
   { id: 'dead_god',     emoji: '💀', label: 'Dead God',         desc: 'Toutes les tâches au moins 1 fois', tier: 'diamond', check: s => s.totalTaskTypes > 0 && s.uniqueTasksDone >= s.totalTaskTypes, progress: s => ({ current: s.uniqueTasksDone, total: Math.max(s.totalTaskTypes, 1) }) },
   { id: 'week_chall',  emoji: '🎯', label: 'Défi accompli',    desc: 'Compléter un défi de la semaine',   tier: 'gold',    check: s => s.weekChallengeDone, progress: s => ({ current: s.weekChallengeDone ? 1 : 0, total: 1 }) },
+  { id: 'champion',   emoji: '👑', label: 'Champion',          desc: 'Être 1er du mois au moins une fois', tier: 'diamond', check: s => s.hasBeenChampion, progress: s => ({ current: s.hasBeenChampion ? 1 : 0, total: 1 }) },
 ]
 
 const TIER_STYLE: Record<string, { card: string; label: string; bar: string }> = {
@@ -57,7 +59,7 @@ const TIER_STYLE: Record<string, { card: string; label: string; bar: string }> =
   diamond: { card: 'from-cyan-900/40 to-blue-900/20 border-cyan-500/40',       label: 'text-cyan-400',   bar: 'bg-cyan-400' },
 }
 
-function computeStats(logs: any[], ticketLogs: any[], totalCategories: number, totalTaskTypes: number, weekChallengeDone: boolean): MemberStats {
+function computeStats(logs: any[], ticketLogs: any[], totalCategories: number, totalTaskTypes: number, weekChallengeDone: boolean, hasBeenChampion: boolean): MemberStats {
   const totalTasks = logs.length
   const totalPoints = logs.reduce((s: number, l: any) => s + (l.points_awarded || 0), 0)
   const days = new Set(logs.map((l: any) => new Date(l.done_at).toDateString()))
@@ -69,7 +71,7 @@ function computeStats(logs: any[], ticketLogs: any[], totalCategories: number, t
   }
   const uniqueCategories = new Set(logs.map((l: any) => l.task_type?.category).filter(Boolean)).size
   const uniqueTasksDone = new Set(logs.map((l: any) => l.task_type_id).filter(Boolean)).size
-  return { totalTasks, totalPoints, maxStreak, uniqueCategories, totalCategories, ticketsCompleted: ticketLogs.length, uniqueTasksDone, totalTaskTypes, weekChallengeDone }
+  return { totalTasks, totalPoints, maxStreak, uniqueCategories, totalCategories, ticketsCompleted: ticketLogs.length, uniqueTasksDone, totalTaskTypes, weekChallengeDone, hasBeenChampion }
 }
 
 export default function SuccesPage() {
@@ -109,6 +111,26 @@ export default function SuccesPage() {
 
     const cats = new Set((taskTypes ?? []).map((t: any) => t.category)).size
     const totalTaskTypes = (taskTypes ?? []).length
+
+    // Compute per-month champion
+    const monthlyPts: Record<string, Record<string, number>> = {}
+    for (const log of allLogs ?? []) {
+      const d = new Date(log.done_at)
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      if (!monthlyPts[log.done_by]) monthlyPts[log.done_by] = {}
+      monthlyPts[log.done_by][mk] = (monthlyPts[log.done_by][mk] ?? 0) + log.points_awarded
+    }
+    const allMonths = new Set(Object.values(monthlyPts).flatMap(m => Object.keys(m)))
+    const champIds = new Set<string>()
+    for (const mk of allMonths) {
+      let best = { pid: '', pts: 0 }
+      for (const [pid, months] of Object.entries(monthlyPts)) {
+        const pts = months[mk] ?? 0
+        if (pts > best.pts) best = { pid, pts }
+      }
+      if (best.pts > 0) champIds.add(best.pid)
+    }
+
     const memberStats: Record<string, { profile: any; achieved: Set<string>; stats: MemberStats }> = {}
 
     for (const m of members ?? []) {
@@ -116,7 +138,7 @@ export default function SuccesPage() {
       if (!p) continue
       const myLogs = (allLogs ?? []).filter((l: any) => l.done_by === m.profile_id)
       const myTickets = (tickets ?? []).filter((t: any) => t.completed_by === m.profile_id)
-      const stats = computeStats(myLogs, myTickets, cats, totalTaskTypes, weekChallengeDone)
+      const stats = computeStats(myLogs, myTickets, cats, totalTaskTypes, weekChallengeDone, champIds.has(m.profile_id))
       const achieved = new Set(ACHIEVEMENTS.filter(a => a.check(stats)).map(a => a.id))
       memberStats[m.profile_id] = { profile: p, achieved, stats }
     }
@@ -133,7 +155,7 @@ export default function SuccesPage() {
 
   const myEntry = data.memberStats[data.profileId]
   const myAchieved: Set<string> = myEntry?.achieved ?? new Set()
-  const myStats: MemberStats = myEntry?.stats ?? { totalTasks: 0, totalPoints: 0, maxStreak: 0, uniqueCategories: 0, totalCategories: 0, ticketsCompleted: 0, uniqueTasksDone: 0, totalTaskTypes: 0, weekChallengeDone: false }
+  const myStats: MemberStats = myEntry?.stats ?? { totalTasks: 0, totalPoints: 0, maxStreak: 0, uniqueCategories: 0, totalCategories: 0, ticketsCompleted: 0, uniqueTasksDone: 0, totalTaskTypes: 0, weekChallengeDone: false, hasBeenChampion: false }
   const others = Object.entries(data.memberStats as Record<string, any>).filter(([id]) => id !== data.profileId)
   const earned = ACHIEVEMENTS.filter(a => myAchieved.has(a.id))
   const locked = ACHIEVEMENTS.filter(a => !myAchieved.has(a.id))

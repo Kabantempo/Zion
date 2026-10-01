@@ -60,7 +60,7 @@ const LeaderboardRankings = React.forwardRef<HTMLDivElement, LeaderboardRankings
               </div>
               <div className="flex-1 min-w-0">
                 <p className={cn('text-sm font-semibold truncate', isMe ? 'text-red-300' : 'text-[#f0f0f8]')}>
-                  {item.userName} {isMe && <span className="text-xs font-normal text-[#7070a0]">(moi)</span>}
+                  {item.rank === 1 && <span className="mr-1">👑</span>}{item.userName} {isMe && <span className="text-xs font-normal text-[#7070a0]">(moi)</span>}
                 </p>
                 {item.byline && <p className="text-xs text-[#7070a0] truncate">{item.byline}</p>}
               </div>
