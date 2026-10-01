@@ -20,15 +20,17 @@ export default function ClassementPage() {
   )
 }
 
-function EvolutionChart({ logs, members }: { logs: any[]; members: any[] }) {
-  const W = 340, H = 140, PAD = { top: 10, right: 10, bottom: 24, left: 28 }
+function EvolutionChart({ logs, members, period }: { logs: any[]; members: any[]; period: Period }) {
+  const [chartType, setChartType] = useState<'line' | 'bar'>('line')
+
+  const numDays = period === 'week' ? 7 : period === 'month' ? 30 : 90
+  const W = 340, H = 140, PAD = { top: 10, right: 10, bottom: 24, left: 32 }
   const innerW = W - PAD.left - PAD.right
   const innerH = H - PAD.top - PAD.bottom
 
-  // Build daily cumulative points per profile over last 30 days
   const now = new Date()
   const days: string[] = []
-  for (let i = 29; i >= 0; i--) {
+  for (let i = numDays - 1; i >= 0; i--) {
     const d = new Date(now.getTime() - i * 86400000)
     days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
   }
@@ -36,7 +38,7 @@ function EvolutionChart({ logs, members }: { logs: any[]; members: any[] }) {
   const dailyByProfile: Record<string, number[]> = {}
   for (const m of members) {
     const pid = m.profile_id || m.userId
-    dailyByProfile[pid] = Array(30).fill(0)
+    dailyByProfile[pid] = Array(numDays).fill(0)
   }
   for (const log of logs) {
     const logDay = log.done_at?.slice(0, 10)
@@ -46,7 +48,6 @@ function EvolutionChart({ logs, members }: { logs: any[]; members: any[] }) {
     }
   }
 
-  // Cumulative
   const cumulative: Record<string, number[]> = {}
   for (const [pid, daily] of Object.entries(dailyByProfile)) {
     cumulative[pid] = []
@@ -54,84 +55,97 @@ function EvolutionChart({ logs, members }: { logs: any[]; members: any[] }) {
     for (const v of daily) { sum += v; cumulative[pid].push(sum) }
   }
 
-  const maxVal = Math.max(1, ...Object.values(cumulative).flatMap(arr => arr))
+  const totals: Record<string, number> = {}
+  for (const [pid, cum] of Object.entries(cumulative)) totals[pid] = cum[numDays - 1] ?? 0
 
-  function toX(i: number) { return PAD.left + (i / 29) * innerW }
-  function toY(v: number) { return PAD.top + innerH - (v / maxVal) * innerH }
+  const maxCum = Math.max(1, ...Object.values(cumulative).flatMap(arr => arr))
+  const maxTotal = Math.max(1, ...Object.values(totals))
 
-  function polyline(pts: number[]) {
-    return pts.map((v, i) => `${toX(i)},${toY(v)}`).join(' ')
-  }
+  function toX(i: number) { return PAD.left + (i / (numDays - 1)) * innerW }
+  function toY(v: number) { return PAD.top + innerH - (v / maxCum) * innerH }
+  function polyline(pts: number[]) { return pts.map((v, i) => `${toX(i)},${toY(v)}`).join(' ') }
 
-  // Y-axis ticks
-  const yTicks = [0, Math.round(maxVal / 2), maxVal]
-  // X-axis ticks: every 7 days
-  const xTicks = [0, 7, 14, 21, 29]
+  const xTickCount = numDays <= 7 ? numDays - 1 : 4
+  const xTicks = Array.from({ length: xTickCount + 1 }, (_, i) => Math.round(i * (numDays - 1) / xTickCount))
+  const yTicks = [0, Math.round(maxCum / 2), maxCum]
+
+  const memberList = members.map((m: any) => {
+    const p = Array.isArray(m.profile) ? m.profile[0] : (m.profile ?? m)
+    return { pid: m.profile_id || m.userId, color: p?.color ?? m.color ?? '#6366f1', name: p?.display_name ?? m.userName ?? '?' }
+  })
+
+  // Bar chart: horizontal bars sorted by total
+  const barMembers = [...memberList].sort((a, b) => (totals[b.pid] ?? 0) - (totals[a.pid] ?? 0))
+  const BAR_H = 340, BAR_W = 200, ROW = Math.floor(BAR_H / barMembers.length)
 
   return (
     <div>
-      <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest mb-3">Évolution des points</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 160 }}>
-        {/* Grid lines */}
-        {yTicks.map(v => (
-          <line key={v} x1={PAD.left} y1={toY(v)} x2={PAD.left + innerW} y2={toY(v)}
-            stroke="#2e2e3e" strokeWidth="1" />
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold text-[#7070a0] uppercase tracking-widest">
+          {chartType === 'line' ? 'Évolution' : 'Total pts'}
+          {period === 'week' ? ' — 7j' : period === 'month' ? ' — 30j' : ' — 90j'}
+        </p>
+        <div className="flex gap-1">
+          {(['line', 'bar'] as const).map(t => (
+            <button key={t} onClick={() => setChartType(t)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${chartType === t ? 'bg-red-500 text-white' : 'text-[#555570] hover:text-[#f0f0f8]'}`}>
+              {t === 'line' ? '📈' : '📊'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {chartType === 'line' ? (
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 160 }}>
+          {yTicks.map(v => (
+            <line key={v} x1={PAD.left} y1={toY(v)} x2={PAD.left + innerW} y2={toY(v)} stroke="#2e2e3e" strokeWidth="1" />
+          ))}
+          {yTicks.map(v => (
+            <text key={v} x={PAD.left - 4} y={toY(v) + 4} textAnchor="end" fill="#555570" fontSize="9">{v}</text>
+          ))}
+          {xTicks.map(i => (
+            <text key={i} x={toX(i)} y={H - 4} textAnchor="middle" fill="#555570" fontSize="9">
+              {i === numDays - 1 ? 'Auj' : `J-${numDays - 1 - i}`}
+            </text>
+          ))}
+          {memberList.map(({ pid, color }) => {
+            const pts = cumulative[pid]; if (!pts) return null
+            return <polyline key={pid} points={polyline(pts)} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          })}
+          {memberList.map(({ pid, color }) => {
+            const pts = cumulative[pid]; if (!pts) return null
+            return <circle key={pid} cx={toX(numDays - 1)} cy={toY(pts[numDays - 1])} r="3" fill={color} stroke="#13131a" strokeWidth="1.5" />
+          })}
+        </svg>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {barMembers.map(({ pid, color, name }) => {
+            const val = totals[pid] ?? 0
+            const pct = maxTotal > 0 ? (val / maxTotal) * 100 : 0
+            return (
+              <div key={pid} className="flex items-center gap-2">
+                <span className="text-[10px] text-[#7070a0] w-16 truncate text-right">{name}</span>
+                <div className="flex-1 h-5 bg-[#1e1e2a] rounded-lg overflow-hidden">
+                  <div className="h-full rounded-lg transition-all duration-500 flex items-center pl-2"
+                    style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: color }}>
+                    {pct > 20 && <span className="text-[9px] font-bold text-white">{val}</span>}
+                  </div>
+                </div>
+                {pct <= 20 && <span className="text-[9px] font-bold text-[#f0f0f5] w-8">{val}</span>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3 mt-3">
+        {memberList.map(({ pid, color, name }) => (
+          <div key={pid} className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+            <span className="text-[10px] text-[#8888a0]">{name}</span>
+            <span className="text-[10px] font-bold text-[#f0f0f5]">{totals[pid] ?? 0}pts</span>
+          </div>
         ))}
-        {/* Y axis labels */}
-        {yTicks.map(v => (
-          <text key={v} x={PAD.left - 4} y={toY(v) + 4} textAnchor="end"
-            fill="#555570" fontSize="9">{v}</text>
-        ))}
-        {/* X axis labels */}
-        {xTicks.map(i => (
-          <text key={i} x={toX(i)} y={H - 4} textAnchor="middle"
-            fill="#555570" fontSize="9">
-            {`J-${29 - i}`}
-          </text>
-        ))}
-        {/* Lines */}
-        {members.map((m: any) => {
-          const pid = m.profile_id || m.userId
-          const pts = cumulative[pid]
-          if (!pts) return null
-          const p = Array.isArray(m.profile) ? m.profile[0] : (m.profile ?? m)
-          const color = p?.color ?? m.color ?? '#6366f1'
-          return (
-            <polyline key={pid} points={polyline(pts)}
-              fill="none" stroke={color} strokeWidth="2"
-              strokeLinecap="round" strokeLinejoin="round" />
-          )
-        })}
-        {/* Endpoint dots */}
-        {members.map((m: any) => {
-          const pid = m.profile_id || m.userId
-          const pts = cumulative[pid]
-          if (!pts) return null
-          const p = Array.isArray(m.profile) ? m.profile[0] : (m.profile ?? m)
-          const color = p?.color ?? m.color ?? '#6366f1'
-          const lastVal = pts[29]
-          return (
-            <circle key={pid} cx={toX(29)} cy={toY(lastVal)} r="3"
-              fill={color} stroke="#13131a" strokeWidth="1.5" />
-          )
-        })}
-      </svg>
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 mt-2">
-        {members.map((m: any) => {
-          const p = Array.isArray(m.profile) ? m.profile[0] : (m.profile ?? m)
-          const color = p?.color ?? m.color ?? '#6366f1'
-          const name = p?.display_name ?? m.userName ?? '?'
-          const pid = m.profile_id || m.userId
-          const total = cumulative[pid]?.[29] ?? 0
-          return (
-            <div key={pid} className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-              <span className="text-[10px] text-[#8888a0]">{name}</span>
-              <span className="text-[10px] font-bold text-[#f0f0f5]">{total}pts</span>
-            </div>
-          )
-        })}
       </div>
     </div>
   )
@@ -447,7 +461,7 @@ function ClassementContent() {
       {/* Evolution chart */}
       {rawLogs.length > 0 && members.length > 0 && (
         <div className="bg-[#13131a] border border-[#252535] rounded-2xl p-4">
-          <EvolutionChart logs={rawLogs} members={members} />
+          <EvolutionChart logs={rawLogs} members={members} period={period} />
         </div>
       )}
 
