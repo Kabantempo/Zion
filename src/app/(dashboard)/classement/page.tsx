@@ -165,6 +165,9 @@ function ClassementContent() {
   const [loadingProfile, setLoadingProfile] = useState(false)
   const [equilSheet, setEquilSheet] = useState<{ memberId: string; points: string; loading: boolean } | null>(null)
   const [equilError, setEquilError] = useState<string | null>(null)
+  const [assignSheet, setAssignSheet] = useState<{ taskId: string; memberId: string; loading: boolean } | null>(null)
+  const [assignError, setAssignError] = useState<string | null>(null)
+  const [taskTypes, setTaskTypes] = useState<any[]>([])
 
   useEffect(() => {
     const session = getProfileSession()
@@ -248,8 +251,30 @@ function ClassementContent() {
       .filter(Boolean)
       .sort((a: any, b: any) => b.value - a.value)
 
+    // Fetch task types for assign sheet
+    const { data: tt } = await supabase.from('task_types').select('id, label, category, points').eq('household_id', householdId).order('category').order('label')
+    setTaskTypes(tt ?? [])
+
     setData({ sorted, profileId, period, householdId })
     setLoading(false)
+  }
+
+  async function submitAssign() {
+    if (!assignSheet || !data) return
+    if (!assignSheet.taskId || !assignSheet.memberId) { setAssignError('Choisis une tâche et un membre'); return }
+    setAssignSheet(prev => prev ? { ...prev, loading: true } : null)
+    const task = taskTypes.find((t: any) => t.id === assignSheet.taskId)
+    const { error } = await supabase.from('tickets').insert({
+      household_id: data.householdId,
+      title: task?.label ?? 'Tâche assignée',
+      description: `👑 Assignée par le champion du mois`,
+      assigned_to: assignSheet.memberId,
+      points: task?.points ?? 10,
+      status: 'todo',
+    })
+    if (error) { setAssignError(error.message); setAssignSheet(prev => prev ? { ...prev, loading: false } : null); return }
+    setAssignSheet(null)
+    setAssignError(null)
   }
 
   async function submitEquil() {
@@ -409,6 +434,14 @@ function ClassementContent() {
           className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-2xl bg-[#13131a] border border-[#252535] text-base hover:bg-[#1a1a24] active:scale-95 transition-all"
           title="Équilibrage de points"
         >⚖️</button>
+        {/* 👑 Assign button — visible only to the #1 player */}
+        {sorted.length > 0 && sorted[0].userId === profileId && period === 'month' && (
+          <button
+            onClick={() => setAssignSheet({ taskId: taskTypes[0]?.id ?? '', memberId: sorted[1]?.userId ?? sorted[0].userId, loading: false })}
+            className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-2xl bg-yellow-500/15 border border-yellow-500/30 text-base hover:bg-yellow-500/25 active:scale-95 transition-all"
+            title="Assigner une tâche (privilège du champion)"
+          >👑</button>
+        )}
       </div>
 
       {/* Equil sheet */}
@@ -452,6 +485,50 @@ function ClassementContent() {
               className="w-full py-3 rounded-xl bg-red-500 text-white font-bold text-sm disabled:opacity-50"
             >
               {equilSheet.loading ? '…' : `Appliquer ${parseInt(equilSheet.points) > 0 ? '+' : ''}${equilSheet.points || 0} pts`}
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Assign sheet */}
+      {assignSheet && createPortal(
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setAssignSheet(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#1a1a24] rounded-t-3xl border-t border-[#2e2e3e] p-5 pb-10 flex flex-col gap-4 max-h-[85dvh]" onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-[#2e2e3e] rounded-full mx-auto" />
+            <h3 className="text-base font-bold text-[#f0f0f5]">👑 Assigner une tâche</h3>
+            <p className="text-xs text-[#7070a0] -mt-2">Privilège du champion — choisis une tâche et un membre</p>
+            <div>
+              <p className="text-sm font-medium text-[#8888a0] mb-2">Tâche</p>
+              <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+                {taskTypes.map((t: any) => (
+                  <button key={t.id} type="button" onClick={() => setAssignSheet(prev => prev ? { ...prev, taskId: t.id } : null)}
+                    className={`flex items-center justify-between px-4 py-2.5 rounded-xl transition-all text-left ${assignSheet.taskId === t.id ? 'bg-yellow-500/20 border border-yellow-500/40' : 'bg-[#22222e] border border-transparent'}`}>
+                    <span className="text-sm text-[#f0f0f5]">{t.label}</span>
+                    <span className="text-xs text-yellow-400 font-bold">+{t.points}pts</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#8888a0] mb-2">Membre</p>
+              <div className="flex flex-col gap-1.5">
+                {sorted.map((m: any) => (
+                  <button key={m.userId} type="button" onClick={() => setAssignSheet(prev => prev ? { ...prev, memberId: m.userId } : null)}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-left ${assignSheet.memberId === m.userId ? 'bg-yellow-500/20 border border-yellow-500/40' : 'bg-[#22222e] border border-transparent'}`}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 overflow-hidden" style={{ backgroundColor: m.color ?? '#555' }}>
+                      {m.avatarUrl ? <img src={m.avatarUrl} className="w-full h-full object-cover" /> : m.userName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-[#f0f0f5] flex-1">{m.userName}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {assignError && <p className="text-xs text-red-400 text-center bg-red-500/10 rounded-xl px-3 py-2">{assignError}</p>}
+            <button onClick={submitAssign} disabled={assignSheet.loading}
+              className="w-full py-3 rounded-xl bg-yellow-500 text-black font-bold text-sm disabled:opacity-50">
+              {assignSheet.loading ? '…' : 'Assigner la tâche 👑'}
             </button>
           </div>
         </div>,
